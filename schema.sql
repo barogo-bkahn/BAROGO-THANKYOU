@@ -6,6 +6,7 @@ grant usage on schema thankyou to service_role;
 
 create table thankyou.employees (
   workspace text not null, user_id text not null, name text not null,
+  part2 text, part3 text, org_exempt boolean not null default false,
   team text not null check(length(trim(team)) > 0), active boolean not null default true,
   updated_at timestamptz not null default now(), primary key(workspace,user_id)
 );
@@ -22,7 +23,7 @@ create table thankyou.praises (
   status text not null default 'pending' check(status in ('pending','approved','rejected')),
   reviewer text, reviewed_at timestamptz, reason text,
   request_id text not null,
-  check(sender <> recipient), check(sender_team <> recipient_team),
+  check(sender <> recipient),
   unique(workspace,sender,month), unique(workspace,request_id)
 );
 create index praises_review on thankyou.praises(workspace,status,id);
@@ -54,6 +55,17 @@ end $$;
 
 -- This API is callable only by the trusted server. Slack signature supplies actor identity.
 -- No SECURITY DEFINER; service_role is deliberately kept in the server secret store.
+create or replace function thankyou.same_org(s2 text,s3 text,r2 text,r3 text)
+returns boolean language sql immutable security invoker set search_path='' as $
+ select case when nullif(nullif(trim(s3),''),'-') is not null
+ then nullif(nullif(trim(s3),''),'-') = nullif(nullif(trim(r3),''),'-')
+ when nullif(nullif(trim(s2),''),'-') is not null
+ then nullif(nullif(trim(s2),''),'-') = nullif(nullif(trim(r2),''),'-')
+ else null end;
+$;
+revoke all on function thankyou.same_org(text,text,text,text) from public,anon,authenticated;
+grant execute on function thankyou.same_org(text,text,text,text) to service_role;
+
 create function public.ty_api(p_op text, p_data jsonb default '{}'::jsonb)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare
@@ -116,7 +128,10 @@ begin
     select * into t from thankyou.employees where workspace=w and user_id=p_data->>'recipient' and active;
     if s.user_id is null or t.user_id is null then return jsonb_build_object('error','재직 중인 직원만 참여할 수 있습니다.'); end if;
     if s.user_id=t.user_id then return jsonb_build_object('error','본인은 추천할 수 없습니다.'); end if;
-    if s.team=t.team then return jsonb_build_object('error','다른 팀 동료만 추천할 수 있습니다.'); end if;
+    if not s.org_exempt and nullif(nullif(trim(s.part3),''),'-') is null and nullif(nullif(trim(s.part2),''),'-') is null then
+      return jsonb_build_object('error','내 part2·part3 조직 정보가 없어 추천 기준을 확인할 수 없습니다. People팀에 문의해주세요.'); end if;
+    if not s.org_exempt and thankyou.same_org(s.part2,s.part3,t.part2,t.part3) is true then
+      return jsonb_build_object('error','발신자의 part3가 있으면 같은 part3, 없으면 같은 part2 동료는 추천할 수 없습니다.'); end if;
     select * into r from thankyou.praises where workspace=w and request_id=p_data->>'request_id';
     if found then
       if r.sender<>u then return jsonb_build_object('error','요청 정보가 일치하지 않습니다.'); end if;

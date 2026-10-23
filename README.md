@@ -9,7 +9,7 @@
 - 공개 채널 자동 게시와 수신자 알림 없음. 메시지 발송 권한도 요청하지 않음.
 - 한국시간 월 중복 제한. 반려도 월 한도 사용(확정).
 - 승인 수신 건당 5점, 제출 분기 내 승인 발신 3건 달성 시 분기당 1점.
-- People팀 CSV의 직원·공식 팀 정보로 검증. 미등록·퇴사·동일 팀·본인 추천 차단.
+- People팀 CSV의 직원·조직 정보로 검증. part1은 무시. 발신자 part3가 있으면 수신자 part3와 비교하고, 없으면 part2끼리 비교하여 같은 경우 차단. 빈칸과 -는 미입력으로 처리.
 - 승인된 칭찬·검토·감사 이력 최대 365일 보존 후 삭제(확정). 삭제 시 해당 원본 기반 점수도 제거.
 
 ## 간단한 배포
@@ -18,7 +18,7 @@
 
 1. 지정 Supabase SQL Editor에서 schema.sql 실행. 기존 앱 테이블이 없는 프로젝트용 초기 SQL이며 재실행하지 않습니다.
 2. verify.sql 실행. 가상 직원으로 DB 제약·권한·점수를 검증하고 전부 롤백합니다.
-3. 관리자 명부 thankyou.admins에 승인된 Slack 사용자 ID를 입력합니다. 직원 명부는 employees.example.csv 형식으로 roster.mjs를 이용해 검증된 SQL로 변환합니다. 명부에 없는 직원은 차단되며, 누락된 기존 직원은 자동 퇴사 처리되지 않습니다.
+3. 관리자 명부 thankyou.admins에 승인된 Slack 사용자 ID를 입력합니다. 직원 명부는 slack_user_id,name,part1,part2,part3 열(선택적으로 active)을 가진 CSV로 roster.mjs를 이용해 검증된 SQL로 변환합니다. 명부에 없는 직원은 차단되며, 누락된 기존 직원은 자동 퇴사 처리되지 않습니다.
 4. Supabase Edge Functions에서 thankyou 함수를 만들고 index.ts를 배포합니다. Supabase의 legacy JWT 검사는 끄고, 코드가 Slack 원문 HMAC 서명과 timestamp를 검증합니다. 이 설정을 바꾸기 전 실제 서명 검증 코드가 배포되었는지 확인합니다.
 5. Edge Secrets에 SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, TOKEN_ENCRYPTION_KEY(무작위 32바이트 base64), INSTALL_PASSWORD(무작위 24자 이상), WORKER_SECRET(무작위 32바이트 이상)을 설정합니다. SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY는 런타임 기본 비밀값을 사용합니다. 키를 채팅이나 저장소에 붙이지 않습니다.
 6. Slack 앱을 만들고 manifest.json을 사용합니다. 실제 URL은 아래와 같습니다. App Home을 활성화하고 messages 탭은 끕니다. Bot scope는 users:read뿐입니다.
@@ -51,3 +51,9 @@ Slack 요청은 원문 body HMAC-SHA256와 5분 창으로 검증합니다. OAuth
 전체 모듈 소스는 source.zip에 포함합니다. Node 24에서 node --test로 단위/요청 처리를 검증하고 node scripts/build-edge.mjs로 index.ts를 재생성합니다. verify.sql과 acceptance.md는 실제 DB·Slack 검증 절차입니다. 테스트 절차와 실제 실행 결과를 구분해 관리합니다.
 
 공식 문서: [Supabase Edge 배포](https://supabase.com/docs/guides/functions/quickstart-dashboard), [백그라운드 처리](https://supabase.com/docs/guides/functions/background-tasks), [Slack 서명](https://docs.slack.dev/authentication/verifying-requests-from-slack/), [Slack OAuth](https://docs.slack.dev/authentication/installing-with-oauth/).
+
+## 조직 판정 규칙
+
+발신자의 part3가 있으면 수신자의 part3와 비교합니다. 발신자의 part3가 비어 있으면 수신자의 part2와 비교합니다. part1은 사용하지 않습니다. 방향별 판정이 달라질 수 있습니다. part2·part3가 모두 없는 발신자는 기준 보완 전 제출을 차단합니다. 같은 팀 표시 문자열을 비교하는 예전 제약은 제거하고 DB의 thankyou.same_org 함수로 검증합니다. 기존 프로젝트는 update-part-rules.sql을 적용합니다. 조직 정보는 제출 시점의 표기를 접수 건에 보존합니다.
+
+People팀이 지정한 조직 제한 예외자는 본인 제외 전체 직원에게 추천할 수 있습니다. 예외는 DB 직원 레코드의 org_exempt로 명시하며 월 한도·자기 추천 차단·관리자 승인을 우회하지 않습니다. 개인별 예외 명부는 공개 코드에 포함하지 않습니다.

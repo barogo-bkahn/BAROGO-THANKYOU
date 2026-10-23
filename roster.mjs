@@ -15,14 +15,18 @@ function csv(text){
  if(value||row.length){row.push(value);rows.push(row);}return rows;
 }
 const rows=csv(readFileSync(input,'utf8').replace(/^\uFEFF/,''));
-if(rows.shift()?.join(',')!=='slack_user_id,name,team,active')throw Error('Invalid CSV header');
+const header=rows.shift();
+if(!['slack_user_id','name','part2','part3'].every(key=>header.includes(key)))throw Error('Required columns: slack_user_id,name,part2,part3. part1 is ignored; active is optional.');
+const cell=(row,key)=>row[header.indexOf(key)]??'';
+const org=value=>{const text=value.trim();return !text||text==='-'?null:text;};
 const quote=s=>`'${s.replaceAll("'","''")}'`;
 const seen=new Set();
 for(const row of rows){
- if(row.length!==4||!/^U[A-Z0-9]+$/.test(row[0])||!row[1].trim()||!row[2].trim()||!['true','false'].includes(row[3])||seen.has(row[0]))throw Error('Invalid or duplicate employee row');
- seen.add(row[0]);
+ const id=cell(row,'slack_user_id'),active=cell(row,'active')||'true';
+ if(row.length!==header.length||!/^U[A-Z0-9]+$/.test(id)||!cell(row,'name').trim()||!['true','false'].includes(active)||seen.has(id))throw Error('Invalid/duplicate employee row or unresolved Slack ID');
+ seen.add(id);
 }
 if(!rows.length)throw Error('Empty roster');
-const values=rows.map(([id,name,team,active])=>`('T159QLK7G',${quote(id)},${quote(name.trim())},${quote(team.trim())},${active})`).join(',\n');
-writeFileSync(output,`begin;\ninsert into thankyou.employees(workspace,user_id,name,team,active) values\n${values}\non conflict(workspace,user_id) do update set name=excluded.name,team=excluded.team,active=excluded.active,updated_at=now();\ncommit;\n`,{mode:0o600});
+const values=rows.map(row=>{const p2=org(cell(row,'part2')),p3=org(cell(row,'part3'));return `('T159QLK7G',${quote(cell(row,'slack_user_id'))},${quote(cell(row,'name').trim())},${p2?quote(p2):'null'},${p3?quote(p3):'null'},${quote([p2,p3].filter(Boolean).join(' / ')||'조직 미지정')},${cell(row,'active')||'true'})`;}).join(',\n');
+writeFileSync(output,`begin;\ninsert into thankyou.employees(workspace,user_id,name,part2,part3,team,active) values\n${values}\non conflict(workspace,user_id) do update set name=excluded.name,part2=excluded.part2,part3=excluded.part3,team=excluded.team,active=excluded.active,updated_at=now();\ncommit;\n`,{mode:0o600});
 console.log(`Validated ${rows.length} employees. Review SQL before importing. Missing rows are NOT deactivated.`);
