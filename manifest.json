@@ -1,0 +1,6 @@
+{
+  "display_information":{"name":"바로고 THANK YOU","description":"다른 팀 동료에게 전하는 비공개 칭찬","background_color":"#17352d"},
+  "features":{"app_home":{"home_tab_enabled":true,"messages_tab_enabled":false},"bot_user":{"display_name":"바로고 THANK YOU","always_online":false}},
+  "oauth_config":{"redirect_urls":["https://EXAMPLE_ORIGIN/slack/oauth/callback"],"scopes":{"bot":["users:read"]}},
+  "settings":{"event_subscriptions":{"request_url":"https://EXAMPLE_ORIGIN/slack/events","bot_events":["app_home_opened","app_uninstalled","tokens_revoked"]},"interactivity":{"is_enabled":true,"request_url":"https://EXAMPLE_ORIGIN/slack/interactions"},"org_deploy_enabled":false,"socket_mode_enabled":false,"token_rotation_enabled":false}
+}
