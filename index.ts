@@ -64,9 +64,12 @@ function reviewModal(data) {
   for (const row of data.rows) blocks.push(
     {type:'divider'}, section(`발신: ${row.sender_name} → 수신: ${row.recipient_name}\n${row.sender_team} → ${row.recipient_team}\n${row.month} · ${row.core_value}`),
     section(row.body),
-    {type:'actions',elements:[button('승인','approve_open',row.id),button('반려','reject_open',row.id)]}
+    section(`처리 상태: ${{pending:'검토 대기',approved:'승인',rejected:'반려'}[row.status]??'검토 대기'}`),
+    ...(row.can_review===true
+      ? [{type:'actions',elements:[button('승인','approve_open',row.id),button('반려','reject_open',row.id)]}]
+      : [section(row.status==='pending'?'조회 전용 · 본인 발신/수신 건은 다른 관리자가 처리합니다.':'조회 전용 · 이미 처리된 칭찬입니다.')])
   );
-  if (!data.rows.length) blocks.push(section('검토할 칭찬이 없습니다.'));
+  if (!data.rows.length) blocks.push(section('접수된 칭찬이 없습니다.'));
   if (data.next) blocks.push({type:'actions',elements:[button('다음 5건','review_next',data.next)]});
   return {type:'modal',title:plain('비공개 검토함'),close:plain('닫기'),blocks};
 }

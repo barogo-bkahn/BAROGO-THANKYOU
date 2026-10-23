@@ -27,6 +27,15 @@ begin
  assert r->>'id'=id,'retry duplicated';
  r:=public.ty_api('submit',jsonb_build_object('workspace',w,'user','UTESTA','recipient','UTESTB','body',repeat('가',25),'core_value','growth','request_id','test-duplicate'));
  assert r ? 'error','monthly duplicate accepted';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTA'));
+ assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'id'=id and (x->>'can_review')::boolean=false),'sender admin cannot read own praise safely';
+ insert into thankyou.admins values(w,'UTESTB',true);
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTB'));
+ assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'id'=id and (x->>'can_review')::boolean=false),'recipient admin cannot read own praise safely';
+ r:=public.ty_api('review',jsonb_build_object('workspace',w,'user','UTESTB','id',id,'decision','approved','reason','테스트'));
+ assert r ? 'error','recipient self reviewed';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTADMIN'));
+ assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'id'=id and (x->>'can_review')::boolean=true),'unrelated admin cannot review';
  r:=public.ty_api('review',jsonb_build_object('workspace',w,'user','UTESTC','id',id,'decision','approved','reason','테스트'));
  assert r ? 'error','non-admin approved';
  r:=public.ty_api('review',jsonb_build_object('workspace',w,'user','UTESTA','id',id,'decision','approved','reason','테스트'));
@@ -37,6 +46,8 @@ begin
  assert r ? 'id','approval retry not idempotent';
  r:=public.ty_api('review',jsonb_build_object('workspace',w,'user','UTESTADMIN','id',id,'decision','rejected','reason','테스트'));
  assert r ? 'error','final decision overwritten';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTA'));
+ assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'id'=id and x->>'status'='approved' and (x->>'can_review')::boolean=false),'completed own praise disappeared';
  -- Exceptions bypass organization restriction, but never self nomination.
  delete from thankyou.praises where workspace=w and sender='UTESTA';
  update thankyou.employees set org_exempt=true,part2=null,part3=null where workspace=w and user_id='UTESTA';

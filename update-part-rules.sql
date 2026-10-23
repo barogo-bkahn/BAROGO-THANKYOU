@@ -17,6 +17,7 @@ $$;
 revoke all on function thankyou.same_org(text,text,text,text) from public,anon,authenticated;
 grant execute on function thankyou.same_org(text,text,text,text) to service_role;
 
+
 create or replace function public.ty_api(p_op text, p_data jsonb default '{}'::jsonb)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare
@@ -106,12 +107,13 @@ begin
   if p_op='review_list' then
     cursor_id := nullif(p_data->>'cursor','')::uuid;
     select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) into rows_json from (
-      select p.id,p.body,p.month,p.core_value,p.sender_team,p.recipient_team,
+      select p.id,p.body,p.month,p.core_value,p.sender_team,p.recipient_team,p.status,
+        (p.status='pending' and p.sender<>u and p.recipient<>u) can_review,
         coalesce(es.name,p.sender) sender_name,coalesce(er.name,p.recipient) recipient_name
       from thankyou.praises p
       left join thankyou.employees es on es.workspace=p.workspace and es.user_id=p.sender
       left join thankyou.employees er on er.workspace=p.workspace and er.user_id=p.recipient
-      where p.workspace=w and p.status='pending' and p.sender<>u and p.recipient<>u
+      where p.workspace=w
         and (cursor_id is null or p.id>cursor_id) order by p.id limit 5
     ) x;
     insert into thankyou.audit(workspace,actor,action) values(w,u,'review_read');
