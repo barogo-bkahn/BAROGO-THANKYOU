@@ -22,10 +22,11 @@ create table thankyou.praises (
   month date not null, created_at timestamptz not null default now(),
   status text not null default 'pending' check(status in ('pending','approved','rejected')),
   reviewer text, reviewed_at timestamptz, reason text,
-  request_id text not null,
+  request_id text not null, quota_waived boolean not null default false,
   check(sender <> recipient),
-  unique(workspace,sender,month), unique(workspace,request_id)
+  unique(workspace,request_id)
 );
+create unique index praises_monthly_quota on thankyou.praises(workspace,sender,month) where not quota_waived;
 create index praises_review on thankyou.praises(workspace,status,id);
 create index praises_quarter on thankyou.praises(workspace,month) where status='approved';
 create table thankyou.audit (
@@ -150,8 +151,9 @@ begin
   select * into s from thankyou.employees where workspace=w and user_id=u and active;
 
   if p_op='home' then
-    select * into r from thankyou.praises where workspace=w and sender=u and month=m;
+    select * into r from thankyou.praises where workspace=w and sender=u and month=m and not quota_waived;
     return jsonb_build_object('eligible',s.user_id is not null,'submitted',r.id is not null,'status',r.status,'admin',admin_ok,
+      'test_quota_available',r.id is null and exists(select 1 from thankyou.praises where workspace=w and sender=u and month=m and quota_waived),
       'quarter_sent',(select count(*) from thankyou.praises where workspace=w and sender=u and month>=q and month<q+interval '3 months'),
       'quarter_received',(select count(*) from thankyou.praises where workspace=w and recipient=u and status='approved' and month>=q and month<q+interval '3 months'));
   elsif p_op='submit' then

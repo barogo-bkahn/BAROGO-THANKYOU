@@ -27,6 +27,16 @@ begin
  assert r->>'id'=id,'retry duplicated';
  r:=public.ty_api('submit',jsonb_build_object('workspace',w,'user','UTESTA','recipient','UTESTB','body',repeat('가',25),'core_value','growth','request_id','test-duplicate'));
  assert r ? 'error','monthly duplicate accepted';
+ -- Release one original test submission without losing its review/audit data.
+ update thankyou.praises set quota_waived=true where workspace=w and request_id='test-valid' and sender='UTESTA';
+ r:=public.ty_api('home',jsonb_build_object('workspace',w,'user','UTESTA'));
+ assert (r->>'submitted')::boolean=false,'released quota still blocked home';
+ r:=public.ty_api('submit',jsonb_build_object('workspace',w,'user','UTESTA','recipient','UTESTB','body',repeat('가',25),'core_value','growth','request_id','test-extra'));
+ assert r ? 'id','extra test submission rejected';
+ r:=public.ty_api('submit',jsonb_build_object('workspace',w,'user','UTESTA','recipient','UTESTB','body',repeat('가',25),'core_value','growth','request_id','test-extra-blocked'));
+ assert r ? 'error','more than one extra test submission allowed';
+ delete from thankyou.praises where workspace=w and request_id='test-extra';
+ update thankyou.praises set quota_waived=false where workspace=w and sender='UTESTA';
  r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTA'));
  assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'id'=id and (x->>'can_review')::boolean=false),'sender admin cannot read own praise safely';
  insert into thankyou.admins values(w,'UTESTB',true);
@@ -97,3 +107,4 @@ begin
 end $$;
 rollback;
 select 'PASS: DB validation, idempotency, authorization, scores and RLS; fixtures rolled back' as result;
+

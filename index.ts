@@ -44,11 +44,13 @@ function homeView(data) {
     section('함께여서 가능했던 순간, 마음에 남은 동료의 도움.\n그 고마움을 작은 칭찬으로 남겨주세요. 💛'),
     section('한 달에 한 번, 다른 팀 동료에게 감사의 마음을 전할 수 있어요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
     {type:'divider'},
-    section(`이번 달 칭찬 ${data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
+    section(`이번 달 칭찬 ${data.test_quota_available ? '테스트용으로 한 번 더 남길 수 있어요' : data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
     section(`이번 분기 내가 남긴 칭찬  ${data.quarter_sent??0}건\n이번 분기 내가 받은 칭찬  ${data.quarter_received??0}건`),
     {type:'context',elements:[plain('남긴 칭찬은 접수 건수, 받은 칭찬은 피플팀이 승인한 건수예요. 분기는 1~3월 · 4~6월 · 7~9월 · 10~12월 기준입니다.')]}
   ];
-  if (data.eligible && !data.submitted) blocks.push({type:'actions',elements:[button('칭찬하기','praise_open')]});
+  const canSubmit=data.eligible && !data.submitted;
+  blocks.push({type:'actions',elements:[canSubmit?{...button('칭찬하기','praise_open'),style:'primary'}:button('🔒 칭찬하기','praise_unavailable')]});
+  if(data.submitted) blocks.push({type:'context',elements:[plain('이번 달 칭찬을 이미 남겼어요. 다음 달에 다시 참여할 수 있어요.')]});
   if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. 피플팀에 문의해주세요.'));
   blocks.push({type:'actions',elements:[button('내 현황 새로고침','home_refresh')]});
   if (data.admin) blocks.push({type:'divider'},{type:'actions',elements:[button('비공개 검토함','review_open'),button('이번 분기 점수','scores_open')]});
@@ -174,7 +176,10 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
       await api.slack('views.publish',await botPromise,{user_id:actor.user,view});
       return response(200,{});
     }
-    if(action?.action_id==='praise_open')view=praiseModal();
+    if(['praise_open','praise_unavailable'].includes(action?.action_id)){
+      const home=await api.db('home',actor);
+      view=home.eligible&&!home.submitted?praiseModal():messageModal(home.submitted?'이번 달 칭찬을 이미 남겼어요. 한 달에 한 번 참여할 수 있으며, 다음 달에 다시 칭찬을 남길 수 있어요.':'직원·팀 정보 등록 후 참여할 수 있어요. 피플팀에 문의해주세요.');
+    }
     else if(['review_open','review_next','review_filter','review_first'].includes(action?.action_id)){
       const options=action.action_id==='review_next'?JSON.parse(action.value):{filter:action.selected_option?.value??(action.action_id==='review_first'?action.value:'all')};
       view=reviewModal(await api.db('review_list',{...actor,...options}));
