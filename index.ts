@@ -27,12 +27,12 @@ function clients(env, request = fetch) {
 }
 
 const VALUES = [
-  ['breakthrough','Breakthrough · 돌파','한계를 깨고 새로운 길을 만드는 태도'],
-  ['altruism','Altruism · 이타심','함께 성장하고 서로를 돕는 태도'],
-  ['right_choice','Right Choice · 옳은 선택','쉬움보다 옳음을 기준으로 선택하는 태도'],
-  ['optimization','Optimization · 최적화','부분이 아닌 전체 흐름을 끝까지 최적화하는 태도'],
-  ['growth','Growth · 성장','어제보다 나은 오늘을 만드는 학습 문화'],
-  ['ownership','Ownership · 오너십','맡은 일의 결과를 끝까지 책임지는 태도']
+  ['breakthrough','막힘없는 해결사! · 돌파','새로운 방법으로 막힌 문제를 풀어줬어요'],
+  ['altruism','동료의 든든한 지원군! · 이타심','다른 팀의 어려움도 자기 일처럼 도와줬어요'],
+  ['right_choice','원칙 지킴이! · 옳은 선택','번거롭더라도 사실과 원칙에 따라 판단했어요'],
+  ['optimization','비효율 해결사! · 최적화','반복되는 불편을 줄이고 일의 흐름을 개선했어요'],
+  ['growth','프로학습러! · 성장','꾸준히 배우고 새로운 방법을 업무에 적용했어요'],
+  ['ownership','책임감 만렙! · 오너십','맡은 일의 결과를 끝까지 확인하고 책임졌어요']
 ];
 const plain = text => ({type:'plain_text',text});
 const section = text => ({type:'section',text:plain(text)});
@@ -71,7 +71,7 @@ function reviewModal(data) {
     section(`전체 ${data.total??data.rows.length}건 · 대기 ${data.pending??0}건 · 승인 ${data.approved??0}건 · 반려 ${data.rejected??0}건\n최신 접수순 · 한 번에 5건씩 표시`),
     {type:'actions',elements:[{type:'static_select',action_id:'review_filter',options:filters,initial_option:filters.find(x=>x.value===(data.filter??'all'))},button('CSV 내보내기','export_open',data.filter??'all')]}];
   for (const row of data.rows) blocks.push(
-    {type:'divider'}, section(`발신: ${row.sender_name} → 수신: ${row.recipient_name}\n${row.sender_team} → ${row.recipient_team}\n${row.month} · ${row.core_value}`),
+    {type:'divider'}, section(`발신: ${row.sender_name} → 수신: ${row.recipient_name}\n${row.sender_team} → ${row.recipient_team}\n${row.month} · ${VALUES.find(v=>v[0]===row.core_value)?.[1]??row.core_value}`),
     section(row.body),
     section(`처리 상태: ${{pending:'검토 대기',approved:'승인',rejected:'반려'}[row.status]??'검토 대기'}`),
     ...(row.can_review===true
@@ -123,11 +123,11 @@ async function unseal(text,key64){
   return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},key,encrypted));
 }
 function praiseCsv(rows){
-  const fields=[['id','접수번호'],['created_at','접수일시(KST)'],['month','귀속월'],['status','처리상태'],['sender_name','작성자'],['sender','작성자 Slack ID'],['sender_team','작성자 조직'],['recipient_name','받은 동료'],['recipient','수신자 Slack ID'],['recipient_team','수신자 조직'],['core_value','핵심가치'],['body','칭찬 내용'],['reviewer_name','검토자'],['reviewed_at','검토일시(KST)'],['reason','검토 사유']];
+  const fields=[['id','접수번호'],['created_at','접수일시(KST)'],['month','귀속월'],['status','처리상태'],['sender_name','작성자'],['sender','작성자 Slack ID'],['sender_team','작성자 조직'],['recipient_name','받은 동료'],['recipient','수신자 Slack ID'],['recipient_team','수신자 조직'],['core_value','핵심가치 코드'],['core_value_label','핵심가치 표시명'],['body','칭찬 내용'],['reviewer_name','검토자'],['reviewed_at','검토일시(KST)'],['reason','검토 사유']];
   const cell=value=>{let s=String(value??'');if(/^[\t\r\n]|^\s*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
   const kst=value=>value?new Date(value).toLocaleString('sv-SE',{timeZone:'Asia/Seoul'}):'';
   const status={pending:'검토 대기',approved:'승인',rejected:'반려'};
-  return '\uFEFF'+[fields.map(([,label])=>cell(label)).join(','),...rows.map(row=>fields.map(([key])=>cell(key==='status'?status[row[key]]:key==='created_at'||key==='reviewed_at'?kst(row[key]):row[key])).join(','))].join('\r\n');
+  return '\uFEFF'+[fields.map(([,label])=>cell(label)).join(','),...rows.map(row=>fields.map(([key])=>cell(key==='core_value_label'?(VALUES.find(v=>v[0]===row.core_value)?.[1]??row.core_value):key==='status'?status[row[key]]:key==='created_at'||key==='reviewed_at'?kst(row[key]):row[key])).join(','))].join('\r\n');
 }
 function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
   const base=env.PUBLIC_URL.replace(/\/$/,'');
