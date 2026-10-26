@@ -41,18 +41,22 @@ function homeView(data) {
   const status={pending:'검토 대기',approved:'승인',rejected:'반려'}[data.status]??'없음';
   const blocks = [
     {type:'header',text:plain('바로고 THANK YOU')},
-    section('함께 일하며 고마웠던 다른 팀 동료에게 칭찬을 남겨주세요.'),
-    section('월 1회 제출할 수 있습니다. 내용은 People팀만 검토하며 공개 채널이나 수신자에게 자동 전달되지 않습니다.'),
-    section(`이번 달: ${data.submitted ? '제출 완료' : '아직 제출하지 않았어요'} · 내 제출 상태: ${status}`)
+    section('함께여서 가능했던 순간, 마음에 남은 동료의 도움.\n그 고마움을 작은 칭찬으로 남겨주세요. 💛'),
+    section('한 달에 한 번, 다른 팀 동료에게 감사의 마음을 전할 수 있어요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
+    {type:'divider'},
+    section(`이번 달 칭찬 ${data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
+    section(`이번 분기 내가 남긴 칭찬  ${data.quarter_sent??0}건\n이번 분기 내가 받은 칭찬  ${data.quarter_received??0}건`),
+    {type:'context',elements:[plain('남긴 칭찬은 접수 건수, 받은 칭찬은 피플팀이 승인한 건수예요. 분기는 1~3월 · 4~6월 · 7~9월 · 10~12월 기준입니다.')]}
   ];
   if (data.eligible && !data.submitted) blocks.push({type:'actions',elements:[button('칭찬하기','praise_open')]});
-  if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. People팀에 문의해주세요.'));
+  if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. 피플팀에 문의해주세요.'));
+  blocks.push({type:'actions',elements:[button('내 현황 새로고침','home_refresh')]});
   if (data.admin) blocks.push({type:'divider'},{type:'actions',elements:[button('비공개 검토함','review_open'),button('이번 분기 점수','scores_open')]});
   return {type:'home',blocks};
 }
 function praiseModal() {
   return {type:'modal',callback_id:'praise_submit',title:plain('동료 칭찬하기'),submit:plain('비공개 접수'),close:plain('취소'),blocks:[
-    section('People팀이 검토합니다. 공개 게시·수신자 알림은 없습니다. 제출 후 이번 달에는 다시 제출할 수 없습니다.'),
+    section('피플팀이 검토합니다. 공개 게시·수신자 알림은 없습니다. 제출 후 이번 달에는 다시 제출할 수 없습니다.'),
     section('불필요한 개인정보, 건강·가족 정보 등 민감한 내용은 입력하지 마세요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
     {type:'input',block_id:'value',label:plain('핵심가치'),element:{type:'static_select',action_id:'value',options:VALUES.map(([value,label,desc])=>({text:plain(label),value,description:plain(desc)}))}},
@@ -60,21 +64,27 @@ function praiseModal() {
   ]};
 }
 function reviewModal(data) {
-  const blocks = [section('People팀 전용 · 본인 발신/수신 건은 다른 관리자가 검토합니다.')];
+  const filters=[['all','전체'],['pending','검토 대기'],['approved','승인'],['rejected','반려']].map(([value,text])=>({text:plain(text),value}));
+  const blocks = [section('피플팀 전용 · 모든 접수 내역을 확인할 수 있어요.\n내가 작성했거나 받은 칭찬은 조회만 가능하며, 승인·반려는 다른 피플팀 관리자가 담당합니다.'),
+    section(`전체 ${data.total??data.rows.length}건 · 대기 ${data.pending??0}건 · 승인 ${data.approved??0}건 · 반려 ${data.rejected??0}건\n최신 접수순 · 한 번에 5건씩 표시`),
+    {type:'actions',elements:[{type:'static_select',action_id:'review_filter',options:filters,initial_option:filters.find(x=>x.value===(data.filter??'all'))},button('CSV 내보내기','export_open',data.filter??'all')]}];
   for (const row of data.rows) blocks.push(
     {type:'divider'}, section(`발신: ${row.sender_name} → 수신: ${row.recipient_name}\n${row.sender_team} → ${row.recipient_team}\n${row.month} · ${row.core_value}`),
     section(row.body),
     section(`처리 상태: ${{pending:'검토 대기',approved:'승인',rejected:'반려'}[row.status]??'검토 대기'}`),
     ...(row.can_review===true
       ? [{type:'actions',elements:[button('승인','approve_open',row.id),button('반려','reject_open',row.id)]}]
-      : [section(row.status==='pending'?'조회 전용 · 본인 발신/수신 건은 다른 관리자가 처리합니다.':'조회 전용 · 이미 처리된 칭찬입니다.')])
+      : [section(row.status==='pending'?'조회 전용 · 내가 작성했거나 받은 칭찬은 다른 피플팀 관리자가 승인·반려합니다.':'조회 전용 · 이미 처리된 칭찬입니다.')])
   );
   if (!data.rows.length) blocks.push(section('접수된 칭찬이 없습니다.'));
-  if (data.next) blocks.push({type:'actions',elements:[button('다음 5건','review_next',data.next)]});
+  const navigation=[];
+  if (data.next) navigation.push(button('다음 5건','review_next',JSON.stringify({cursor:data.next,filter:data.filter??'all'})));
+  navigation.push(button('처음으로','review_first',data.filter??'all'));
+  blocks.push({type:'actions',elements:navigation});
   return {type:'modal',title:plain('비공개 검토함'),close:plain('닫기'),blocks};
 }
 function decisionModal(id, decision) {
-  return {type:'modal',callback_id:'review_submit',private_metadata:JSON.stringify({id,decision}),title:plain(decision==='approved'?'칭찬 승인':'칭찬 반려'),submit:plain('확정'),close:plain('취소'),blocks:[section('확정 후 직접 변경할 수 없습니다. 잘못 처리한 경우 운영 담당자에게 문의해주세요.'),{type:'input',block_id:'reason',label:plain('검토 사유 (People팀 내부용)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:2,max_length:500}}]};
+  return {type:'modal',callback_id:'review_submit',private_metadata:JSON.stringify({id,decision}),title:plain(decision==='approved'?'칭찬 승인':'칭찬 반려'),submit:plain('확정'),close:plain('취소'),blocks:[section('확정 후 직접 변경할 수 없습니다. 잘못 처리한 경우 운영 담당자에게 문의해주세요.'),{type:'input',block_id:'reason',label:plain('검토 사유 (피플팀 내부용)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:2,max_length:500}}]};
 }
 function messageModal(text) {
   return {type:'modal',title:plain('바로고 THANK YOU'),close:plain('닫기'),blocks:[section(text)]};
@@ -109,6 +119,13 @@ async function unseal(text,key64){
   const [iv,encrypted]=text.split('.').map(decode64);
   const key=await crypto.subtle.importKey('raw',decode64(key64),'AES-GCM',false,['decrypt']);
   return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},key,encrypted));
+}
+function praiseCsv(rows){
+  const fields=[['id','접수번호'],['created_at','접수일시(KST)'],['month','귀속월'],['status','처리상태'],['sender_name','작성자'],['sender','작성자 Slack ID'],['sender_team','작성자 조직'],['recipient_name','받은 동료'],['recipient','수신자 Slack ID'],['recipient_team','수신자 조직'],['core_value','핵심가치'],['body','칭찬 내용'],['reviewer_name','검토자'],['reviewed_at','검토일시(KST)'],['reason','검토 사유']];
+  const cell=value=>{let s=String(value??'');if(/^[\t\r\n]|^\s*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+  const kst=value=>value?new Date(value).toLocaleString('sv-SE',{timeZone:'Asia/Seoul'}):'';
+  const status={pending:'검토 대기',approved:'승인',rejected:'반려'};
+  return '\uFEFF'+[fields.map(([,label])=>cell(label)).join(','),...rows.map(row=>fields.map(([key])=>cell(key==='status'?status[row[key]]:key==='created_at'||key==='reviewed_at'?kst(row[key]):row[key])).join(','))].join('\r\n');
 }
 function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
   const base=env.PUBLIC_URL.replace(/\/$/,'');
@@ -145,25 +162,39 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
         } else if(p.view.callback_id==='praise_submit'){
           await api.db('submit',{...actor,recipient:values.recipient?.value.selected_user,core_value:values.value?.value.selected_option?.value,body:values.body?.value.value,request_id:p.view.id});
         } else return response(400,{error:'unknown_view'});
-        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 검토함을 다시 열어주세요.':'비공개로 접수되었습니다. People팀 검토 후 집계됩니다. 공개 게시·수신자 알림은 없습니다.')});
+        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 검토함을 다시 열어주세요.':'비공개로 접수되었습니다. 피플팀 검토 후 집계됩니다. 공개 게시·수신자 알림은 없습니다.')});
       } catch(e){return response(200,{response_action:'errors',errors:{[review?'reason':'body']:e instanceof SafeError?e.message:'결과 확인이 지연됩니다. 같은 창에서 다시 제출해주세요.'}});}
     }
     const action=p.actions?.[0];let view;
+    if(action?.action_id==='export_link')return response(200,{});
     // Read installation in parallel to authorization/data to fit Slack trigger_id deadline.
     const botPromise=token();botPromise.catch(()=>{});
+    if(action?.action_id==='home_refresh'){
+      const view=homeView(await api.db('home',actor));
+      await api.slack('views.publish',await botPromise,{user_id:actor.user,view});
+      return response(200,{});
+    }
     if(action?.action_id==='praise_open')view=praiseModal();
-    else if(['review_open','review_next'].includes(action?.action_id))view=reviewModal(await api.db('review_list',{...actor,cursor:action.value}));
+    else if(['review_open','review_next','review_filter','review_first'].includes(action?.action_id)){
+      const options=action.action_id==='review_next'?JSON.parse(action.value):{filter:action.selected_option?.value??(action.action_id==='review_first'?action.value:'all')};
+      view=reviewModal(await api.db('review_list',{...actor,...options}));
+    } else if(action?.action_id==='export_open'){
+      const ticket=hex(crypto.getRandomValues(new Uint8Array(32)));
+      await api.db('export_create',{...actor,hash:await digest(ticket),filter:action.value??'all'});
+      view=messageModal('선택한 상태의 전체 접수 내역을 CSV로 내려받을 수 있어요.\n작성자·수신자·조직·핵심가치·칭찬 내용·처리 상태·검토 사유가 포함됩니다.\n링크는 5분 동안 한 번만 사용할 수 있어요. 피플팀 내부에서 보관하고 공유해주세요.');
+      view.blocks.push({type:'actions',elements:[{type:'button',action_id:'export_link',text:{type:'plain_text',text:'CSV 다운로드'},url:base+'/exports/download?ticket='+ticket}]});
+    }
     else if(['approve_open','reject_open'].includes(action?.action_id)){
-      if(!(await api.db('home',actor)).admin)throw new SafeError('People팀 관리자 권한이 없습니다.');
+      if(!(await api.db('home',actor)).admin)throw new SafeError('피플팀 관리자 권한이 없습니다.');
       view=decisionModal(action.value,action.action_id==='approve_open'?'approved':'rejected');
     } else if(action?.action_id==='scores_open'){
       const data=await api.db('scores',actor);
       view=messageModal(`${data.quarter_start} 시작 분기 · 승인 건 기준\n발신 3건 달성 시 분기당 1점`);
       view.blocks.push(...data.rows.slice(0,95).map(r=>({type:'section',text:{type:'plain_text',text:`${r.name}: 수신 ${r.received_points}점 · 발신 ${r.sent_count}건 / ${r.sender_points}점 · 합계 ${r.total_points}점`}})));
-      if(data.rows.length>95)view.blocks.push({type:'section',text:{type:'plain_text',text:'전체 결과는 People팀 운영 담당자가 DB에서 내보낼 수 있습니다.'}});
+      if(data.rows.length>95)view.blocks.push({type:'section',text:{type:'plain_text',text:'전체 결과는 피플팀 운영 담당자가 DB에서 내보낼 수 있습니다.'}});
     } else return response(200,{});
     const bot=await botPromise;
-    if(action.action_id==='review_next')await api.slack('views.update',bot,{view_id:p.view.id,hash:p.view.hash,view});
+    if(['review_next','review_filter','review_first'].includes(action.action_id))await api.slack('views.update',bot,{view_id:p.view.id,hash:p.view.hash,view});
     else await api.slack(p.view?.type==='modal'?'views.push':'views.open',bot,{trigger_id:p.trigger_id,view});
     return response(200,{});
   }
@@ -176,6 +207,12 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
       for(const prefix of [new URL(base).pathname,'/thankyou'])
         if(path===prefix||path.startsWith(prefix+'/')){path=path.slice(prefix.length);break;}
       if(request.method==='GET'&&path==='/healthz')return response(200,{ok:true});
+      if(request.method==='GET'&&path==='/exports/download'){
+        const ticket=url.searchParams.get('ticket');
+        if(!/^[a-f0-9]{64}$/.test(ticket??''))return response(403,{error:'유효하지 않은 다운로드 링크입니다.'});
+        const data=await api.db('export_download',{hash:await digest(ticket)},15000);
+        return response(200,praiseCsv(data.rows),{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="barogo-thankyou.csv"','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"});
+      }
       if(request.method==='POST'&&path==='/internal/tick'){
         if(!env.WORKER_SECRET||!safeEqual(request.headers.get('authorization'),`Bearer ${env.WORKER_SECRET}`))return response(401,{error:'unauthorized'});
         waitUntil(drain());return response(200,{ok:true});

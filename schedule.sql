@@ -15,4 +15,5 @@ select cron.schedule('thankyou-retention','15 18 * * *',$cron$
   delete from thankyou.audit where created_at<now()-interval '365 days';
   delete from thankyou.jobs where available_at<now()-interval '7 days';
   delete from thankyou.oauth_states where expires_at<now();
+  delete from thankyou.export_tickets where expires_at<now();
 $cron$);

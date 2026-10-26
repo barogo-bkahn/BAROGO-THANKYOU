@@ -3,7 +3,7 @@ begin;
 set local role service_role;
 do $$
 declare
- w text:='T159QLK7G'; r jsonb; id text;
+ w text:='T159QLK7G'; r jsonb; id text; first_page jsonb;
  q date:=date_trunc('quarter',now() at time zone 'Asia/Seoul')::date;
 begin
  insert into thankyou.employees(workspace,user_id,name,team) values
@@ -62,7 +62,33 @@ begin
  r:=public.ty_api('scores',jsonb_build_object('workspace',w,'user','UTESTADMIN'));
  assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'user_id'='UTESTA' and (x->>'sent_count')::int=3 and (x->>'sender_points')::int=1),'sender threshold wrong';
  assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'user_id'='UTESTB' and (x->>'received_points')::int=15),'recipient points wrong';
+ r:=public.ty_api('home',jsonb_build_object('workspace',w,'user','UTESTA'));
+ assert (r->>'quarter_sent')::int=3,'home sent quarter count wrong';
+ r:=public.ty_api('home',jsonb_build_object('workspace',w,'user','UTESTB'));
+ assert (r->>'quarter_received')::int=3,'home received quarter count wrong';
+ -- Seven future-dated fixtures guarantee a deterministic first page without touching real rows.
+ insert into thankyou.praises(workspace,sender,recipient,sender_team,recipient_team,body,core_value,month,status,request_id,created_at)
+ select w,'UTESTPAGE'||n,'UTESTB','A','B',repeat('가',25),'growth',q,'pending','test-page-'||n,now()+n*interval '1 second' from generate_series(1,7)n;
+ first_page:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTADMIN','filter','pending'));
+ assert jsonb_array_length(first_page->'rows')=5 and first_page->'next'<>'null'::jsonb,'pagination first page wrong';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTADMIN','filter','pending','cursor',first_page->'next'));
+ assert not exists(select 1 from jsonb_array_elements(r->'rows') x join jsonb_array_elements(first_page->'rows') y on x->>'id'=y->>'id'),'pagination duplicated rows';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTADMIN','filter','approved'));
+ assert not exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'status'<>'approved'),'filter leaked other status';
+ r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTC'));
+ assert r ? 'error','ordinary employee read admin list';
+ r:=public.ty_api('export_create',jsonb_build_object('workspace',w,'user','UTESTC','hash','test-not-admin'));
+ assert r ? 'error','ordinary employee exported';
+ r:=public.ty_api('export_create',jsonb_build_object('workspace',w,'user','UTESTADMIN','hash','test-export','filter','approved'));
+ assert not (r ? 'error'),'admin export denied';
+ r:=public.ty_api('export_download',jsonb_build_object('hash','test-export'));
+ assert jsonb_array_length(r->'rows')>=3 and not exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'status'<>'approved'),'CSV filter wrong';
+ r:=public.ty_api('export_download',jsonb_build_object('hash','test-export'));
+ assert r ? 'error','download ticket reused';
+ r:=public.ty_api('export_create',jsonb_build_object('workspace',w,'user','UTESTADMIN','hash','test-revoked'));
  update thankyou.admins set active=false where workspace=w and user_id='UTESTADMIN';
+ r:=public.ty_api('export_download',jsonb_build_object('hash','test-revoked'));
+ assert r ? 'error','revoked admin downloaded';
  r:=public.ty_api('review_list',jsonb_build_object('workspace',w,'user','UTESTADMIN'));
  assert r ? 'error','revoked admin still authorized';
  assert not has_function_privilege('anon','public.ty_api(text,jsonb)','execute'),'anon can execute';
