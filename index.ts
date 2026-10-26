@@ -62,7 +62,7 @@ function praiseModal() {
     section('불필요한 개인정보, 건강·가족 정보 등 민감한 내용은 입력하지 마세요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
     {type:'input',block_id:'value',label:plain('핵심가치'),element:{type:'static_select',action_id:'value',options:VALUES.map(([value,label,desc])=>({text:plain(label),value,description:plain(desc)}))}},
-    {type:'input',block_id:'body',label:plain('어떤 행동이 고마웠나요?'),hint:plain('구체적인 상황과 행동을 20~2,000자로 작성해주세요.'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:20,max_length:2000}}
+    {type:'input',block_id:'body',label:plain('어떤 행동이 고마웠나요?'),hint:plain('육하원칙을 참고해 ‘어떤 상황에서 → 동료가 무엇을 어떻게 했고 → 어떤 도움이 되었는지’를 적어주세요. 선택한 핵심가치와 연결되는 구체적인 행동이 잘 드러날수록 좋아요. 길이보다 내용이 중요해요! (20~2,000자)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:20,max_length:2000}}
   ]};
 }
 function reviewModal(data) {
