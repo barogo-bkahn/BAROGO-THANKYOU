@@ -247,7 +247,7 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) into result from (
       with approved as (select * from thankyou.praises where workspace=w and status='approved' and month>=q and month<(q+interval '3 months')::date),
       points as (select recipient user_id,count(*)*5 received,0::bigint sent,0::bigint bonus from approved group by recipient
-        union all select sender,0,count(*),case when count(*)>=3 then 1 else 0 end from approved group by sender)
+        union all select sender,0,count(*),case when count(*)>=3 then 5 else 0 end from approved group by sender)
       select e.user_id,e.name,sum(p.received) received_points,sum(p.sent) sent_count,sum(p.bonus) sender_points,
         sum(p.received+p.bonus) total_points from points p join thankyou.employees e on e.workspace=w and e.user_id=p.user_id
       group by e.user_id,e.name order by e.user_id

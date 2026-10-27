@@ -194,7 +194,7 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
       view=decisionModal(action.value,action.action_id==='approve_open'?'approved':'rejected');
     } else if(action?.action_id==='scores_open'){
       const data=await api.db('scores',actor);
-      view=messageModal(`${data.quarter_start} 시작 분기 · 승인 건 기준\n발신 3건 달성 시 분기당 1점`);
+      view=messageModal(`${data.quarter_start} 시작 분기 · 승인 건 기준\n발신 3건 달성 시 분기당 5점`);
       view.blocks.push(...data.rows.slice(0,95).map(r=>({type:'section',text:{type:'plain_text',text:`${r.name}: 수신 ${r.received_points}점 · 발신 ${r.sent_count}건 / ${r.sender_points}점 · 합계 ${r.total_points}점`}})));
       if(data.rows.length>95)view.blocks.push({type:'section',text:{type:'plain_text',text:'전체 결과는 피플팀 운영 담당자가 DB에서 내보낼 수 있습니다.'}});
     } else return response(200,{});
