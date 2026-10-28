@@ -40,16 +40,17 @@ const button = (text, action_id, value) => ({type:'button',text:plain(text),acti
 function homeView(data) {
   const status={pending:'검토 대기',approved:'승인',rejected:'반려'}[data.status]??'없음';
   const blocks = [
-    {type:'header',text:plain('바로고 THANK YOU')},
-    section('함께여서 가능했던 순간, 마음에 남은 동료의 도움.\n그 고마움을 작은 칭찬으로 남겨주세요. 💛'),
-    section('한 달에 한 번, 다른 팀 동료에게 감사의 마음을 전할 수 있어요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
+    {type:'header',text:plain('칭찬교환소')},
+    section('동료에게 받은 고마움, 칭찬으로.\n동료에게 받은 칭찬, 팀의 간식으로. 🍪'),
+    section('칭찬교환소에 오신 걸 환영해요! 한 달에 한 번, 다른 팀 동료에게 받은 고마움을 칭찬으로 맡겨주세요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
+    {type:'context',elements:[plain('분기별 선정자의 팀에 간식을 선물해요. 칭찬 접수마다 간식이 지급되는 방식은 아니에요.')]},
     {type:'divider'},
     section(`이번 달 칭찬 ${data.test_quota_available ? '테스트용으로 한 번 더 남길 수 있어요' : data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
     section(`이번 분기 내가 남긴 칭찬  ${data.quarter_sent??0}건\n이번 분기 내가 받은 칭찬  ${data.quarter_received??0}건`),
     {type:'context',elements:[plain('남긴 칭찬은 접수 건수, 받은 칭찬은 피플팀이 승인한 건수예요. 분기는 1~3월 · 4~6월 · 7~9월 · 10~12월 기준입니다.')]}
   ];
   const canSubmit=data.eligible && !data.submitted;
-  blocks.push({type:'actions',elements:[canSubmit?{...button('칭찬하기','praise_open'),style:'primary'}:button('🔒 칭찬하기','praise_unavailable')]});
+  blocks.push({type:'actions',elements:[canSubmit?{...button('칭찬 맡기기','praise_open'),style:'primary'}:button('🔒 칭찬 맡기기','praise_unavailable')]});
   if(data.submitted) blocks.push({type:'context',elements:[plain('이번 달 칭찬을 이미 남겼어요. 다음 달에 다시 참여할 수 있어요.')]});
   if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. 피플팀에 문의해주세요.'));
   blocks.push({type:'actions',elements:[button('내 현황 새로고침','home_refresh')]});
@@ -57,7 +58,7 @@ function homeView(data) {
   return {type:'home',blocks};
 }
 function praiseModal() {
-  return {type:'modal',callback_id:'praise_submit',title:plain('동료 칭찬하기'),submit:plain('비공개 접수'),close:plain('취소'),blocks:[
+  return {type:'modal',callback_id:'praise_submit',title:plain('칭찬 맡기기'),submit:plain('비공개로 맡기기'),close:plain('취소'),blocks:[
     section('피플팀이 검토합니다. 공개 게시·수신자 알림은 없습니다. 제출 후 이번 달에는 다시 제출할 수 없습니다.'),
     section('불필요한 개인정보, 건강·가족 정보 등 민감한 내용은 입력하지 마세요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
@@ -89,7 +90,7 @@ function decisionModal(id, decision) {
   return {type:'modal',callback_id:'review_submit',private_metadata:JSON.stringify({id,decision}),title:plain(decision==='approved'?'칭찬 승인':'칭찬 반려'),submit:plain('확정'),close:plain('취소'),blocks:[section('확정 후 직접 변경할 수 없습니다. 잘못 처리한 경우 운영 담당자에게 문의해주세요.'),{type:'input',block_id:'reason',label:plain('검토 사유 (피플팀 내부용)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:2,max_length:500}}]};
 }
 function messageModal(text) {
-  return {type:'modal',title:plain('바로고 THANK YOU'),close:plain('닫기'),blocks:[section(text)]};
+  return {type:'modal',title:plain('칭찬교환소'),close:plain('닫기'),blocks:[section(text)]};
 }
 
 
@@ -164,7 +165,7 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
         } else if(p.view.callback_id==='praise_submit'){
           await api.db('submit',{...actor,recipient:values.recipient?.value.selected_user,core_value:values.value?.value.selected_option?.value,body:values.body?.value.value,request_id:p.view.id});
         } else return response(400,{error:'unknown_view'});
-        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 검토함을 다시 열어주세요.':'비공개로 접수되었습니다. 피플팀 검토 후 집계됩니다. 공개 게시·수신자 알림은 없습니다.')});
+        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 검토함을 다시 열어주세요.':'고마운 마음, 잘 맡아뒀어요! 📮 피플팀 검토 후 유효 칭찬으로 집계돼요. 공개 게시·수신자 알림은 없어요.')});
       } catch(e){return response(200,{response_action:'errors',errors:{[review?'reason':'body']:e instanceof SafeError?e.message:'결과 확인이 지연됩니다. 같은 창에서 다시 제출해주세요.'}});}
     }
     const action=p.actions?.[0];let view;
