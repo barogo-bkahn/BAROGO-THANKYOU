@@ -35,6 +35,7 @@ const VALUES = [
   ['ownership','책임감 만렙! · 오너십','맡은 일의 결과를 끝까지 확인하고 책임졌어요']
 ];
 const PARTICIPATION_RULE = "같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n점수를 위해 미리 약속하고 칭찬을 주고받는 일을 줄이고, 더 다양한 동료의 좋은 행동을 발견하기 위한 규칙이에요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.";
+const participationNotes = '참여 전 확인해주세요\n- 한 달에 한 번, 다른 팀 동료에게 칭찬을 맡길 수 있어요. 반려되어도 이번 달 제출 한도는 사용돼요.\n- 같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n- 점수를 위해 미리 약속한 맞칭찬은 지양해주세요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.\n- 더 다양한 동료의 좋은 행동을 발견하고 칭찬해주세요.\n- 남긴 이야기는 피플팀만 검토하며, 공개 게시·수신자 자동 알림은 없어요.\n- 불필요한 개인정보나 건강·가족 정보 등 민감한 내용은 적지 말아주세요.';
 const plain = text => ({type:'plain_text',text});
 const section = text => ({type:'section',text:plain(text)});
 const button = (text, action_id, value) => ({type:'button',text:plain(text),action_id,...(value ? {value}: {})});
@@ -42,10 +43,9 @@ function homeView(data) {
   const status={pending:'검토 대기',approved:'승인',rejected:'반려'}[data.status]??'없음';
   const blocks = [
     {type:'header',text:plain('칭찬교환소')},
-    section(PARTICIPATION_RULE),
+    section('칭찬교환소에 오신 걸 환영해요! 💛'),
     section('동료에게 받은 고마움, 칭찬으로.\n동료에게 받은 칭찬, 팀의 간식으로. 🍪'),
-    section('칭찬교환소에 오신 걸 환영해요! 한 달에 한 번, 다른 팀 동료에게 받은 고마움을 칭찬으로 맡겨주세요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
-    {type:'context',elements:[plain('분기별 선정자의 팀에 간식을 선물해요. 칭찬 접수마다 간식이 지급되는 방식은 아니에요.')]},
+    section('함께 일하며 고마웠던 동료의 행동을 남겨주세요.\n맡겨주신 이야기는 피플팀이 소중히 살펴볼게요.'),
     {type:'divider'},
     section(`이번 달 칭찬 ${data.test_quota_available ? '테스트용으로 한 번 더 남길 수 있어요' : data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
     section(`이번 분기 내가 남긴 칭찬  ${data.quarter_sent??0}건\n이번 분기 내가 받은 칭찬  ${data.quarter_received??0}건`),
@@ -56,17 +56,17 @@ function homeView(data) {
   if(data.submitted) blocks.push({type:'context',elements:[plain('이번 달 칭찬을 이미 남겼어요. 다음 달에 다시 참여할 수 있어요.')]});
   if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. 피플팀에 문의해주세요.'));
   blocks.push({type:'actions',elements:[button('내 현황 새로고침','home_refresh')]});
+  blocks.push({type:'divider'},section(participationNotes),section('간식 선물 안내\n- 분기별 선정자의 팀에 간식을 선물해요.\n- 칭찬 접수마다 간식이 지급되는 방식은 아니에요.'));
   if (data.admin) blocks.push({type:'divider'},{type:'actions',elements:[button('비공개 검토함','review_open'),button('이번 분기 점수','scores_open')]});
   return {type:'home',blocks};
 }
 function praiseModal() {
   return {type:'modal',callback_id:'praise_submit',title:plain('칭찬 맡기기'),submit:plain('비공개로 맡기기'),close:plain('취소'),blocks:[
-    section('피플팀이 검토합니다. 공개 게시·수신자 알림은 없습니다. 제출 후 이번 달에는 다시 제출할 수 없습니다.'),
-    section(PARTICIPATION_RULE),
-    section('불필요한 개인정보, 건강·가족 정보 등 민감한 내용은 입력하지 마세요.'),
+    section('반가워요! 고마운 동료의 이야기를 맡겨주세요. 💛\n누구의 어떤 행동이 고마웠는지 적어주시면 피플팀이 소중히 살펴볼게요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
     {type:'input',block_id:'value',label:plain('핵심가치'),element:{type:'static_select',action_id:'value',options:VALUES.map(([value,label,desc])=>({text:plain(label),value,description:plain(desc)}))}},
-    {type:'input',block_id:'body',label:plain('어떤 행동이 고마웠나요?'),hint:plain('육하원칙을 참고해 ‘어떤 상황에서 → 동료가 무엇을 어떻게 했고 → 어떤 도움이 되었는지’를 적어주세요. 선택한 핵심가치와 연결되는 구체적인 행동이 잘 드러날수록 좋아요. 길이보다 내용이 중요해요! (20~2,000자)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:20,max_length:2000}}
+    {type:'input',block_id:'body',label:plain('어떤 행동이 고마웠나요?'),hint:plain('육하원칙을 참고해 ‘어떤 상황에서 → 동료가 무엇을 어떻게 했고 → 어떤 도움이 되었는지’를 적어주세요. 선택한 핵심가치와 연결되는 구체적인 행동이 잘 드러날수록 좋아요. 길이보다 내용이 중요해요! (20~2,000자)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:20,max_length:2000}},
+    {type:'divider'},section(participationNotes)
   ]};
 }
 function reviewModal(data) {
