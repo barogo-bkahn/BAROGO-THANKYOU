@@ -36,7 +36,7 @@ create table thankyou.praises (
   body text not null check(length(trim(body)) between 20 and 2000),
   core_value text not null references thankyou.core_values(code) check(core_value in ('breakthrough','altruism','right_choice','optimization','growth','ownership')),
   month date not null, created_at timestamptz not null default now(),
-  status text not null default 'pending' check(status in ('pending','approved','rejected')),
+  status text not null default 'submitted' check(status in ('pending','approved','rejected','submitted')),
   reviewer text, reviewed_at timestamptz, reason text,
   request_id text not null, quota_waived boolean not null default false,
   check(sender <> recipient),
@@ -97,7 +97,7 @@ declare
   r thankyou.praises%rowtype; s thankyou.employees%rowtype; t thankyou.employees%rowtype;
   j thankyou.jobs%rowtype; ticket thankyou.export_tickets%rowtype;
   result jsonb; rows_json jsonb; cursor_id uuid; cursor_at timestamptz;
-  status_filter text := coalesce(p_data->>'filter','all'); stats jsonb;
+  status_filter text := 'all'; stats jsonb;
   m date := date_trunc('month', clock_timestamp() at time zone 'Asia/Seoul')::date;
   q date := date_trunc('quarter', clock_timestamp() at time zone 'Asia/Seoul')::date;
   admin_ok boolean;
@@ -106,7 +106,7 @@ begin
   if p_op='export_download' then
     delete from thankyou.export_tickets where hash=p_data->>'hash' and expires_at>now() returning * into ticket;
     if not found then return jsonb_build_object('error','다운로드 링크가 만료되었거나 이미 사용되었습니다. 검토함에서 다시 만들어주세요.'); end if;
-    w:=ticket.workspace; u:=ticket.actor; status_filter:=ticket.status_filter;
+    w:=ticket.workspace; u:=ticket.actor; status_filter:='all';
     if w<>'T159QLK7G' or not exists(select 1 from thankyou.admins where workspace=w and user_id=u and active) then
       return jsonb_build_object('error','피플팀 관리자 권한이 없습니다.');
     end if;
@@ -171,7 +171,7 @@ begin
     return jsonb_build_object('eligible',s.user_id is not null,'submitted',r.id is not null,'status',r.status,'admin',admin_ok,
       'test_quota_available',r.id is null and exists(select 1 from thankyou.praises where workspace=w and sender=u and month=m and quota_waived),
       'quarter_sent',(select count(*) from thankyou.praises where workspace=w and sender=u and month>=q and month<q+interval '3 months'),
-      'quarter_received',(select count(*) from thankyou.praises where workspace=w and recipient=u and status='approved' and month>=q and month<q+interval '3 months'));
+      'quarter_received',(select count(*) from thankyou.praises where workspace=w and recipient=u and month>=q and month<q+interval '3 months'));
   elsif p_op='submit' then
     if s.user_id is null then return jsonb_build_object('error','직원·팀 정보 등록이 필요합니다.'); end if;
     -- Directory rows are share-locked against concurrent roster updates while validating.
@@ -221,7 +221,7 @@ begin
       from thankyou.praises where workspace=w;
     select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) into rows_json from (
       select p.id,p.created_at,p.body,p.month,p.core_value,p.sender_team,p.recipient_team,p.status,
-        (p.status='pending' and p.sender<>u and p.recipient<>u) can_review,
+        false can_review,
         coalesce(es.name,p.sender) sender_name,coalesce(er.name,p.recipient) recipient_name
       from thankyou.praises p
       left join thankyou.employees es on es.workspace=p.workspace and es.user_id=p.sender
@@ -233,6 +233,7 @@ begin
     return stats||jsonb_build_object('filter',status_filter,'rows',case when jsonb_array_length(rows_json)>5 then rows_json-5 else rows_json end,
       'next',case when jsonb_array_length(rows_json)>5 then jsonb_build_object('id',rows_json->4->>'id','created_at',rows_json->4->>'created_at') else null end);
   elsif p_op='review' then
+    return jsonb_build_object('error','승인·반려 절차는 사용하지 않습니다.');
     select * into r from thankyou.praises where workspace=w and id=(p_data->>'id')::uuid for update;
     if not found then return jsonb_build_object('error','접수 건을 찾을 수 없습니다.'); end if;
     if u in (r.sender,r.recipient) then return jsonb_build_object('error','본인 발신·수신 건은 검토할 수 없습니다.'); end if;
@@ -248,9 +249,9 @@ begin
     return jsonb_build_object('id',r.id);
   elsif p_op='scores' then
     select coalesce(jsonb_agg(to_jsonb(x)),'[]'::jsonb) into result from (
-      with approved as (select * from thankyou.praises where workspace=w and status='approved' and month>=q and month<(q+interval '3 months')::date),
-      points as (select recipient user_id,count(*)*5 received,0::bigint sent,0::bigint bonus from approved group by recipient
-        union all select sender,0,count(*),case when count(*)>=3 then 5 else 0 end from approved group by sender)
+      with quarter_praises as (select * from thankyou.praises where workspace=w and month>=q and month<(q+interval '3 months')::date),
+      points as (select recipient user_id,count(*)*5 received,0::bigint sent,0::bigint bonus from quarter_praises group by recipient
+        union all select sender,0,count(*),case when count(*)>=3 then 5 else 0 end from quarter_praises group by sender)
       select e.user_id,e.name,sum(p.received) received_points,sum(p.sent) sent_count,sum(p.bonus) sender_points,
         least(100,sum(p.received+p.bonus)) total_points from points p join thankyou.employees e on e.workspace=w and e.user_id=p.user_id
       group by e.user_id,e.name order by e.user_id

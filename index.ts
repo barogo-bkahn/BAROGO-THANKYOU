@@ -35,21 +35,21 @@ const VALUES = [
   ['ownership','책임감 만렙! · 오너십','맡은 일의 결과를 끝까지 확인하고 책임졌어요']
 ];
 const PARTICIPATION_RULE = "같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n점수를 위해 미리 약속하고 칭찬을 주고받는 일을 줄이고, 더 다양한 동료의 좋은 행동을 발견하기 위한 규칙이에요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.";
-const participationNotes = '참여 전 확인해주세요\n- 한 달에 한 번, 다른 팀 동료에게 칭찬을 맡길 수 있어요. 반려되어도 이번 달 제출 한도는 사용돼요.\n- 같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n- 점수를 위해 미리 약속한 맞칭찬은 지양해주세요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.\n- 더 다양한 동료의 좋은 행동을 발견하고 칭찬해주세요.\n- 남긴 이야기는 피플팀만 검토하며, 공개 게시·수신자 자동 알림은 없어요.\n- 불필요한 개인정보나 건강·가족 정보 등 민감한 내용은 적지 말아주세요.';
+const participationNotes = '참여 전 확인해주세요\n- 한 달에 한 번, 다른 팀 동료에게 칭찬을 맡길 수 있어요. 제출하면 이번 달 참여가 완료돼요.\n- 같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n- 점수를 위해 미리 약속한 맞칭찬은 지양해주세요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.\n- 더 다양한 동료의 좋은 행동을 발견하고 칭찬해주세요.\n- 남긴 이야기는 피플팀만 확인하며, 공개 게시·수신자 자동 알림은 없어요.\n- 불필요한 개인정보나 건강·가족 정보 등 민감한 내용은 적지 말아주세요.';
 const plain = text => ({type:'plain_text',text});
 const section = text => ({type:'section',text:plain(text)});
 const button = (text, action_id, value) => ({type:'button',text:plain(text),action_id,...(value ? {value}: {})});
 function homeView(data) {
-  const status={pending:'검토 대기',approved:'승인',rejected:'반려'}[data.status]??'없음';
+  const status='접수 완료';
   const blocks = [
     {type:'header',text:plain('칭찬교환소')},
     section('칭찬교환소에 오신 걸 환영해요! 💛'),
     section('동료에게 받은 고마움, 칭찬으로.\n동료에게 받은 칭찬, 팀의 간식으로. 🍪'),
-    section('함께 일하며 고마웠던 동료의 행동을 남겨주세요.\n맡겨주신 이야기는 피플팀이 소중히 살펴볼게요.'),
+    section('함께 일하며 고마웠던 동료의 행동을 남겨주세요.\n맡겨주신 이야기는 바로 접수되고, 분기 평가에 반영돼요.'),
     {type:'divider'},
     section(`이번 달 칭찬 ${data.test_quota_available ? '테스트용으로 한 번 더 남길 수 있어요' : data.submitted ? '✓ 제출 완료' : '아직 전하지 않았어요'}${data.submitted ? ` · ${status}` : ''}`),
     section(`이번 분기 내가 남긴 칭찬  ${data.quarter_sent??0}건\n이번 분기 내가 받은 칭찬  ${data.quarter_received??0}건`),
-    {type:'context',elements:[plain('남긴 칭찬은 접수 건수, 받은 칭찬은 피플팀이 승인한 건수예요. 분기는 1~3월 · 4~6월 · 7~9월 · 10~12월 기준입니다.')]}
+    {type:'context',elements:[plain('남긴 칭찬과 받은 칭찬 모두 전체 접수 건수예요. 분기는 1~3월 · 4~6월 · 7~9월 · 10~12월 기준입니다.')]}
   ];
   const canSubmit=data.eligible && !data.submitted;
   blocks.push({type:'actions',elements:[canSubmit?{...button('칭찬 맡기기','praise_open'),style:'primary'}:button('🔒 칭찬 맡기기','praise_unavailable')]});
@@ -57,12 +57,12 @@ function homeView(data) {
   if (!data.eligible) blocks.push(section('직원·팀 정보가 등록되지 않았습니다. 피플팀에 문의해주세요.'));
   blocks.push({type:'actions',elements:[button('내 현황 새로고침','home_refresh')]});
   blocks.push({type:'divider'},section(participationNotes),section('간식 선물 안내\n- 분기별 선정자의 팀에 간식을 선물해요.\n- 칭찬 접수마다 간식이 지급되는 방식은 아니에요.'));
-  if (data.admin) blocks.push({type:'divider'},{type:'actions',elements:[button('비공개 검토함','review_open'),button('이번 분기 점수','scores_open')]});
+  if (data.admin) blocks.push({type:'divider'},{type:'actions',elements:[button('비공개 접수함','review_open'),button('이번 분기 점수','scores_open')]});
   return {type:'home',blocks};
 }
 function praiseModal() {
   return {type:'modal',callback_id:'praise_submit',title:plain('칭찬 맡기기'),submit:plain('비공개로 맡기기'),close:plain('취소'),blocks:[
-    section('반가워요! 고마운 동료의 이야기를 맡겨주세요. 💛\n누구의 어떤 행동이 고마웠는지 적어주시면 피플팀이 소중히 살펴볼게요.'),
+    section('반가워요! 고마운 동료의 이야기를 맡겨주세요. 💛\n누구의 어떤 행동이 고마웠는지 적어주세요. 제출하면 바로 접수돼요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
     {type:'input',block_id:'value',label:plain('핵심가치'),element:{type:'static_select',action_id:'value',options:VALUES.map(([value,label,desc])=>({text:plain(label),value,description:plain(desc)}))}},
     {type:'input',block_id:'body',label:plain('어떤 행동이 고마웠나요?'),hint:plain('육하원칙을 참고해 ‘어떤 상황에서 → 동료가 무엇을 어떻게 했고 → 어떤 도움이 되었는지’를 적어주세요. 선택한 핵심가치와 연결되는 구체적인 행동이 잘 드러날수록 좋아요. 길이보다 내용이 중요해요! (20~2,000자)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:20,max_length:2000}},
@@ -70,27 +70,19 @@ function praiseModal() {
   ]};
 }
 function reviewModal(data) {
-  const filters=[['all','전체'],['pending','검토 대기'],['approved','승인'],['rejected','반려']].map(([value,text])=>({text:plain(text),value}));
-  const blocks = [section('피플팀 전용 · 모든 접수 내역을 확인할 수 있어요.\n내가 작성했거나 받은 칭찬은 조회만 가능하며, 승인·반려는 다른 피플팀 관리자가 담당합니다.'),
-    section(`전체 ${data.total??data.rows.length}건 · 대기 ${data.pending??0}건 · 승인 ${data.approved??0}건 · 반려 ${data.rejected??0}건\n최신 접수순 · 한 번에 5건씩 표시`),
-    {type:'actions',elements:[{type:'static_select',action_id:'review_filter',options:filters,initial_option:filters.find(x=>x.value===(data.filter??'all'))},button('CSV 내보내기','export_open',data.filter??'all')]}];
+  const blocks = [section('피플팀 전용 · 전체 접수 내역을 조회하고 CSV로 내려받을 수 있어요.\n제출 즉시 접수되며 승인·반려 절차는 없어요. 내용의 충실도는 분기 정성 평가에서 판단해요.'),
+    section(`전체 ${data.total??data.rows.length}건 · 최신 접수순 · 한 번에 5건씩 표시`),
+    {type:'actions',elements:[button('CSV 내보내기','export_open','all')]}];
   for (const row of data.rows) blocks.push(
     {type:'divider'}, section(`발신: ${row.sender_name} → 수신: ${row.recipient_name}\n${row.sender_team} → ${row.recipient_team}\n${row.month} · ${VALUES.find(v=>v[0]===row.core_value)?.[1]??row.core_value}`),
-    section(row.body),
-    section(`처리 상태: ${{pending:'검토 대기',approved:'승인',rejected:'반려'}[row.status]??'검토 대기'}`),
-    ...(row.can_review===true
-      ? [{type:'actions',elements:[button('승인','approve_open',row.id),button('반려','reject_open',row.id)]}]
-      : [section(row.status==='pending'?'조회 전용 · 내가 작성했거나 받은 칭찬은 다른 피플팀 관리자가 승인·반려합니다.':'조회 전용 · 이미 처리된 칭찬입니다.')])
+    section(row.body),section('접수 완료 · 조회 전용')
   );
   if (!data.rows.length) blocks.push(section('접수된 칭찬이 없습니다.'));
   const navigation=[];
-  if (data.next) navigation.push(button('다음 5건','review_next',JSON.stringify({cursor:data.next,filter:data.filter??'all'})));
-  navigation.push(button('처음으로','review_first',data.filter??'all'));
+  if (data.next) navigation.push(button('다음 5건','review_next',JSON.stringify({cursor:data.next,filter:'all'})));
+  navigation.push(button('처음으로','review_first','all'));
   blocks.push({type:'actions',elements:navigation});
-  return {type:'modal',title:plain('비공개 검토함'),close:plain('닫기'),blocks};
-}
-function decisionModal(id, decision) {
-  return {type:'modal',callback_id:'review_submit',private_metadata:JSON.stringify({id,decision}),title:plain(decision==='approved'?'칭찬 승인':'칭찬 반려'),submit:plain('확정'),close:plain('취소'),blocks:[section('확정 후 직접 변경할 수 없습니다. 잘못 처리한 경우 운영 담당자에게 문의해주세요.'),{type:'input',block_id:'reason',label:plain('검토 사유 (피플팀 내부용)'),element:{type:'plain_text_input',action_id:'value',multiline:true,min_length:2,max_length:500}}]};
+  return {type:'modal',title:plain('비공개 접수함'),close:plain('닫기'),blocks};
 }
 function messageModal(text) {
   return {type:'modal',title:plain('칭찬교환소'),close:plain('닫기'),blocks:[section(text)]};
@@ -127,10 +119,10 @@ async function unseal(text,key64){
   return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},key,encrypted));
 }
 function praiseCsv(rows){
-  const fields=[['id','접수번호'],['created_at','접수일시(KST)'],['month','귀속월'],['status','처리상태'],['sender_name','작성자'],['sender','작성자 Slack ID'],['sender_team','작성자 조직'],['recipient_name','받은 동료'],['recipient','수신자 Slack ID'],['recipient_team','수신자 조직'],['core_value','핵심가치 코드'],['core_value_label','핵심가치 표시명'],['body','칭찬 내용'],['reviewer_name','검토자'],['reviewed_at','검토일시(KST)'],['reason','검토 사유']];
+  const fields=[['id','접수번호'],['created_at','접수일시(KST)'],['month','귀속월'],['status','접수상태'],['sender_name','작성자'],['sender','작성자 Slack ID'],['sender_team','작성자 조직'],['recipient_name','받은 동료'],['recipient','수신자 Slack ID'],['recipient_team','수신자 조직'],['core_value','핵심가치 코드'],['core_value_label','핵심가치 표시명'],['body','칭찬 내용']];
   const cell=value=>{let s=String(value??'');if(/^[\t\r\n]|^\s*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
   const kst=value=>value?new Date(value).toLocaleString('sv-SE',{timeZone:'Asia/Seoul'}):'';
-  const status={pending:'검토 대기',approved:'승인',rejected:'반려'};
+  const status={pending:'접수 완료',approved:'접수 완료',rejected:'접수 완료',submitted:'접수 완료'};
   return '\uFEFF'+[fields.map(([,label])=>cell(label)).join(','),...rows.map(row=>fields.map(([key])=>cell(key==='core_value_label'?(VALUES.find(v=>v[0]===row.core_value)?.[1]??row.core_value):key==='status'?status[row[key]]:key==='created_at'||key==='reviewed_at'?kst(row[key]):row[key])).join(','))].join('\r\n');
 }
 function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
@@ -161,6 +153,7 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
     if(p.type==='view_submission'){
       const values=p.view?.state?.values??{};
       const review=p.view.callback_id==='review_submit';
+      if(review)return response(200,{response_action:'update',view:messageModal('승인·반려 절차가 없어졌어요. 접수함에서 전체 내역을 확인해주세요.')});
       try {
         if(review){
           const meta=JSON.parse(p.view.private_metadata);
@@ -168,7 +161,7 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
         } else if(p.view.callback_id==='praise_submit'){
           await api.db('submit',{...actor,recipient:values.recipient?.value.selected_user,core_value:values.value?.value.selected_option?.value,body:values.body?.value.value,request_id:p.view.id});
         } else return response(400,{error:'unknown_view'});
-        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 검토함을 다시 열어주세요.':'고마운 마음, 잘 맡아뒀어요! 📮 피플팀 검토 후 유효 칭찬으로 집계돼요. 공개 게시·수신자 알림은 없어요.')});
+        return response(200,{response_action:'update',view:messageModal(review?'검토를 저장했습니다. 접수함을 다시 열어주세요.':'고마운 마음, 잘 맡아뒀어요! 📮 바로 접수되었으며, 이번 분기 건수와 점수에 반영돼요. 공개 게시·수신자 알림은 없어요.')});
       } catch(e){return response(200,{response_action:'errors',errors:{[review?'reason':'body']:e instanceof SafeError?e.message:'결과 확인이 지연됩니다. 같은 창에서 다시 제출해주세요.'}});}
     }
     const action=p.actions?.[0];let view;
@@ -190,15 +183,14 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
     } else if(action?.action_id==='export_open'){
       const ticket=hex(crypto.getRandomValues(new Uint8Array(32)));
       await api.db('export_create',{...actor,hash:await digest(ticket),filter:action.value??'all'});
-      view=messageModal('선택한 상태의 전체 접수 내역을 CSV로 내려받을 수 있어요.\n작성자·수신자·조직·핵심가치·칭찬 내용·처리 상태·검토 사유가 포함됩니다.\n링크는 5분 동안 한 번만 사용할 수 있어요. 피플팀 내부에서 보관하고 공유해주세요.');
+      view=messageModal('전체 접수 내역을 CSV로 내려받을 수 있어요.\n작성자·수신자·조직·핵심가치·칭찬 내용·접수 상태가 포함됩니다.\n링크는 5분 동안 한 번만 사용할 수 있어요. 피플팀 내부에서 보관하고 공유해주세요.');
       view.blocks.push({type:'actions',elements:[{type:'button',action_id:'export_link',text:{type:'plain_text',text:'CSV 다운로드'},url:base+'/exports/download?ticket='+ticket}]});
     }
     else if(['approve_open','reject_open'].includes(action?.action_id)){
-      if(!(await api.db('home',actor)).admin)throw new SafeError('피플팀 관리자 권한이 없습니다.');
-      view=decisionModal(action.value,action.action_id==='approve_open'?'approved':'rejected');
+      view=messageModal('승인·반려 절차가 없어졌어요. 접수함에서 전체 내역을 확인해주세요.');
     } else if(action?.action_id==='scores_open'){
       const data=await api.db('scores',actor);
-      view=messageModal(`${data.quarter_start} 시작 분기 · 승인 건 기준\n발신 3건 달성 시 분기당 5점`);
+      view=messageModal(`${data.quarter_start} 시작 분기 · 전체 접수 기준\n발신 3건 달성 시 분기당 5점`);
       view.blocks.push(...data.rows.slice(0,95).map(r=>({type:'section',text:{type:'plain_text',text:`${r.name}: 수신 ${r.received_points}점 · 발신 ${r.sent_count}건 / ${r.sender_points}점 · 합계 ${r.total_points}점`}})));
       if(data.rows.length>95)view.blocks.push({type:'section',text:{type:'plain_text',text:'전체 결과는 피플팀 운영 담당자가 DB에서 내보낼 수 있습니다.'}});
     } else return response(200,{});
