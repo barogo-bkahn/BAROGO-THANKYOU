@@ -68,14 +68,14 @@ begin
  -- Build exactly 3 approved submissions in this quarter, independent of current month.
  delete from thankyou.praises where workspace=w and sender='UTESTA';
  insert into thankyou.praises(workspace,sender,recipient,sender_team,recipient_team,body,core_value,month,status,request_id)
- select w,'UTESTA','UTESTB','A','B',repeat('가',25),'growth',(q+n*interval '1 month')::date,'approved','test-quarter-'||n from generate_series(0,2)n;
+ select w,'UTESTA',case n when 0 then 'UTESTB' when 1 then 'UTESTC' else 'UTESTADMIN' end,'A','B',repeat('가',25),'growth',(q+n*interval '1 month')::date,'approved','test-quarter-'||n from generate_series(0,2)n;
  r:=public.ty_api('scores',jsonb_build_object('workspace',w,'user','UTESTADMIN'));
  assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'user_id'='UTESTA' and (x->>'sent_count')::int=3 and (x->>'sender_points')::int=5),'sender threshold wrong';
- assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'user_id'='UTESTB' and (x->>'received_points')::int=15),'recipient points wrong';
+ assert exists(select 1 from jsonb_array_elements(r->'rows') x where x->>'user_id'='UTESTB' and (x->>'received_points')::int=5),'recipient points wrong';
  r:=public.ty_api('home',jsonb_build_object('workspace',w,'user','UTESTA'));
  assert (r->>'quarter_sent')::int=3,'home sent quarter count wrong';
  r:=public.ty_api('home',jsonb_build_object('workspace',w,'user','UTESTB'));
- assert (r->>'quarter_received')::int=3,'home received quarter count wrong';
+ assert (r->>'quarter_received')::int=1,'home received quarter count wrong';
  -- Seven future-dated fixtures guarantee a deterministic first page without touching real rows.
  insert into thankyou.praises(workspace,sender,recipient,sender_team,recipient_team,body,core_value,month,status,request_id,created_at)
  select w,'UTESTPAGE'||n,'UTESTB','A','B',repeat('가',25),'growth',q,'pending','test-page-'||n,now()+n*interval '1 second' from generate_series(1,7)n;
@@ -107,4 +107,5 @@ begin
 end $$;
 rollback;
 select 'PASS: DB validation, idempotency, authorization, scores and RLS; fixtures rolled back' as result;
+
 

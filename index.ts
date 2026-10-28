@@ -34,6 +34,7 @@ const VALUES = [
   ['growth','프로학습러! · 성장','꾸준히 배우고 새로운 방법을 업무에 적용했어요'],
   ['ownership','책임감 만렙! · 오너십','맡은 일의 결과를 끝까지 확인하고 책임졌어요']
 ];
+const PARTICIPATION_RULE = "같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n점수를 위해 미리 약속하고 칭찬을 주고받는 일을 줄이고, 더 다양한 동료의 좋은 행동을 발견하기 위한 규칙이에요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.";
 const plain = text => ({type:'plain_text',text});
 const section = text => ({type:'section',text:plain(text)});
 const button = (text, action_id, value) => ({type:'button',text:plain(text),action_id,...(value ? {value}: {})});
@@ -41,6 +42,7 @@ function homeView(data) {
   const status={pending:'검토 대기',approved:'승인',rejected:'반려'}[data.status]??'없음';
   const blocks = [
     {type:'header',text:plain('칭찬교환소')},
+    section(PARTICIPATION_RULE),
     section('동료에게 받은 고마움, 칭찬으로.\n동료에게 받은 칭찬, 팀의 간식으로. 🍪'),
     section('칭찬교환소에 오신 걸 환영해요! 한 달에 한 번, 다른 팀 동료에게 받은 고마움을 칭찬으로 맡겨주세요.\n남겨주신 이야기는 피플팀이 소중히 살펴봅니다. 공개 채널에 게시되거나 동료에게 자동으로 전달되지는 않아요.'),
     {type:'context',elements:[plain('분기별 선정자의 팀에 간식을 선물해요. 칭찬 접수마다 간식이 지급되는 방식은 아니에요.')]},
@@ -60,6 +62,7 @@ function homeView(data) {
 function praiseModal() {
   return {type:'modal',callback_id:'praise_submit',title:plain('칭찬 맡기기'),submit:plain('비공개로 맡기기'),close:plain('취소'),blocks:[
     section('피플팀이 검토합니다. 공개 게시·수신자 알림은 없습니다. 제출 후 이번 달에는 다시 제출할 수 없습니다.'),
+    section(PARTICIPATION_RULE),
     section('불필요한 개인정보, 건강·가족 정보 등 민감한 내용은 입력하지 마세요.'),
     {type:'input',block_id:'recipient',label:plain('칭찬할 다른 팀 동료'),element:{type:'users_select',action_id:'value'}},
     {type:'input',block_id:'value',label:plain('핵심가치'),element:{type:'static_select',action_id:'value',options:VALUES.map(([value,label,desc])=>({text:plain(label),value,description:plain(desc)}))}},

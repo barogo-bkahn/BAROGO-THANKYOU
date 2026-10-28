@@ -196,7 +196,10 @@ begin
       select * into r from thankyou.praises where workspace=w and request_id=p_data->>'request_id' and sender=u;
       if found then return jsonb_build_object('id',r.id); end if;
       return jsonb_build_object('error','이번 달에는 이미 제출했습니다. 반려되어도 월 한도는 유지됩니다.');
-    when check_violation or not_null_violation then
+    when check_violation then
+      if SQLERRM like '같은 동료에게는 분기당%' then return jsonb_build_object('error',SQLERRM); end if;
+      return jsonb_build_object('error','입력 내용을 확인해주세요. 본문 20~2,000자, 핵심가치 선택이 필요합니다.');
+    when not_null_violation then
       return jsonb_build_object('error','입력 내용을 확인해주세요. 본문 20~2,000자, 핵심가치 선택이 필요합니다.');
     end;
     insert into thankyou.audit(workspace,actor,action,target) values(w,u,'submit',r.id);
@@ -261,3 +264,21 @@ revoke all on function public.ty_api(text,jsonb) from public,anon,authenticated;
 grant execute on function public.ty_api(text,jsonb) to service_role;
 
 commit;
+
+create or replace function thankyou.enforce_quarter_recipient()
+returns trigger language plpgsql security invoker set search_path=pg_catalog,thankyou as $$
+declare quarter_start date;
+begin
+ if TG_OP='UPDATE' and (new.workspace,new.sender,new.recipient,new.month) is not distinct from (old.workspace,old.sender,old.recipient,old.month) then return new; end if;
+ quarter_start:=make_date(extract(year from new.month)::int,((extract(month from new.month)::int-1)/3)*3+1,1);
+ perform pg_advisory_xact_lock(hashtextextended(new.workspace||':'||new.sender||':'||quarter_start::text,0));
+ if exists(select 1 from thankyou.praises p where p.workspace=new.workspace and p.sender=new.sender and p.recipient=new.recipient and p.month>=quarter_start and p.month<quarter_start+interval '3 months' and p.id<>new.id and p.request_id<>new.request_id) then
+  raise exception using errcode='23514', message='같은 동료에게는 분기당 한 번만 칭찬할 수 있어요. 이번에는 다른 동료의 좋은 행동을 찾아주세요.';
+ end if;
+ return new;
+end $$;
+revoke all on function thankyou.enforce_quarter_recipient() from public,anon,authenticated;
+grant execute on function thankyou.enforce_quarter_recipient() to service_role;
+drop trigger if exists praises_quarter_recipient on thankyou.praises;
+create trigger praises_quarter_recipient before insert or update of workspace,sender,recipient,month on thankyou.praises for each row execute function thankyou.enforce_quarter_recipient();
+

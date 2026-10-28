@@ -109,7 +109,10 @@ begin
       select * into r from thankyou.praises where workspace=w and request_id=p_data->>'request_id' and sender=u;
       if found then return jsonb_build_object('id',r.id); end if;
       return jsonb_build_object('error','이번 달에는 이미 제출했습니다. 반려되어도 월 한도는 유지됩니다.');
-    when check_violation or not_null_violation then
+    when check_violation then
+      if SQLERRM like '같은 동료에게는 분기당%' then return jsonb_build_object('error',SQLERRM); end if;
+      return jsonb_build_object('error','입력 내용을 확인해주세요. 본문 20~2,000자, 핵심가치 선택이 필요합니다.');
+    when not_null_violation then
       return jsonb_build_object('error','입력 내용을 확인해주세요. 본문 20~2,000자, 핵심가치 선택이 필요합니다.');
     end;
     insert into thankyou.audit(workspace,actor,action,target) values(w,u,'submit',r.id);
