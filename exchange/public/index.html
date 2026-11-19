@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><meta name="theme-color" content="#191D23"><title>칭찬교환소 · 고마움이 선물이 되는 곳</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+ <div id="demo-banner" class="demo-banner" hidden>가상 데이터로 둘러보는 테스트 교환소 <span>실제 포인트·쿠폰·휴가는 지급되지 않아요. 상품 가격은 예시예요.</span></div>
+ <header class="site-header"><a class="brand" href="/" aria-label="칭찬교환소 홈"><span class="brand-symbol" aria-hidden="true">↔</span><span>칭찬교환소<small>고마움이 선물이 되는 곳</small></span></a><div class="account"><span id="user-name"></span><button id="logout" class="text-button" hidden>로그아웃</button></div></header>
+ <main id="app"><div class="loading" role="status">교환소 문을 열고 있어요…</div></main>
+ <footer>고마운 마음을 모아, 나를 위한 선물로. <span>칭찬교환소 · 피플팀</span></footer>
+ <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+ <dialog id="confirm-dialog" aria-labelledby="dialog-title"><form id="confirm-form"><button class="dialog-close" type="button" aria-label="닫기">×</button><h2 id="dialog-title"></h2><div id="dialog-body"></div><p id="dialog-error" role="alert" class="error" hidden></p><div class="dialog-actions"><button type="button" class="secondary dialog-cancel">돌아가기</button><button type="submit" id="confirm-button" class="primary">확인</button></div></form></dialog>
+<dialog id="guide-dialog" class="guide-dialog" aria-labelledby="reward-title"><button class="dialog-close guide-close" type="button" aria-label="닫기">×</button><div id="guide-body"></div></dialog>
+<dialog id="evidence-dialog" class="evidence-dialog" aria-labelledby="evidence-title"><button class="dialog-close evidence-close" type="button" aria-label="닫기">×</button><div id="evidence-body"></div><div class="dialog-actions"><button type="button" class="secondary evidence-close">닫기</button></div></dialog>
+<dialog id="points-dialog" class="points-dialog" aria-labelledby="points-title"><button class="dialog-close points-close" type="button" aria-label="닫기">×</button><div id="points-body"></div></dialog>
+<dialog id="product-dialog" class="product-dialog" aria-labelledby="product-title"><form id="product-form" method="dialog" novalidate><button class="dialog-close product-close" type="button" aria-label="닫기">×</button><h2 id="product-title">선물 등록</h2><input type="hidden" id="pf-id">
+<label class="field"><span>선물 이름</span><input id="pf-name" maxlength="40" required placeholder="예: 스타벅스 카드 1만원권"></label>
+<div class="field-row"><label class="field"><span>카테고리</span><select id="pf-category"><option>휴가·리프레시</option><option>업무 장비</option><option>커피·간식</option><option>성장·학습</option><option>기타</option></select></label><label class="field"><span>이미지</span><select id="pf-icon"></select></label></div>
+<div class="field-row"><label class="field"><span>교환 포인트 (P)</span><input id="pf-price" type="number" min="1" max="1000000" step="1" inputmode="numeric" required></label><label class="field"><span>남은 수량 (개)</span><input id="pf-stock" type="number" min="0" max="9999" step="1" inputmode="numeric" required></label></div>
+<label class="field"><span>이용 안내 <small>(선택, 200자 이하)</small></span><textarea id="pf-description" maxlength="200" rows="3" placeholder="직원에게 보여줄 설명을 적어주세요."></textarea></label>
+<label class="check"><input id="pf-active" type="checkbox" checked><span>교환소에 노출</span></label>
+<p class="field-hint" id="pf-hint"></p><p id="pf-error" role="alert" class="error" hidden></p>
+<div class="dialog-actions"><button type="button" class="secondary product-close">취소</button><button type="submit" id="pf-submit" class="primary">저장</button></div></form></dialog>
+</body></html>

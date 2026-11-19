@@ -1,97 +1,13 @@
--- Initial bootstrap, run once in an inspected, empty development project.
+-- Monthly limit: one praise per sender per Korea-time month (individual exemptions via praises.quota_waived).
+-- Backstop unique index + explicit pre-check in ty_api('submit'). Existing rows are untouched.
 begin;
-create schema thankyou;
-revoke all on schema thankyou from public, anon, authenticated;
-grant usage on schema thankyou to service_role;
-
-create table thankyou.employees (
-  workspace text not null, user_id text not null, name text not null,
-  part2 text, part3 text, org_exempt boolean not null default false,
-  team text not null check(length(trim(team)) > 0), active boolean not null default true,
-  updated_at timestamptz not null default now(), primary key(workspace,user_id)
-);
-create table thankyou.admins (
-  workspace text not null, user_id text not null, active boolean not null default true,
-  primary key(workspace,user_id)
-);
-create table if not exists thankyou.core_values (
- code text primary key, name_en text not null, name_ko text not null,
- nickname text not null, description text not null
-);
-alter table thankyou.core_values enable row level security;
-revoke all on thankyou.core_values from public,anon,authenticated;
-grant select on thankyou.core_values to service_role;
-insert into thankyou.core_values(code,name_en,name_ko,nickname,description) values
-('breakthrough','Breakthrough','돌파','막힘없는 해결사!','새로운 방법으로 막힌 문제를 풀어줬어요'),
-('altruism','Altruism','이타심','동료의 든든한 지원군!','다른 팀의 어려움도 자기 일처럼 도와줬어요'),
-('right_choice','Right Choice','옳은 선택','원칙 지킴이!','번거롭더라도 사실과 원칙에 따라 판단했어요'),
-('optimization','Optimization','최적화','비효율 해결사!','반복되는 불편을 줄이고 일의 흐름을 개선했어요'),
-('growth','Growth','성장','프로학습러!','꾸준히 배우고 새로운 방법을 업무에 적용했어요'),
-('ownership','Ownership','오너십','책임감 만렙!','맡은 일의 결과를 끝까지 확인하고 책임졌어요')
-on conflict(code) do update set name_en=excluded.name_en,name_ko=excluded.name_ko,nickname=excluded.nickname,description=excluded.description;
-
-create table thankyou.praises (
-  id uuid primary key default gen_random_uuid(), workspace text not null,
-  sender text not null, recipient text not null, sender_team text not null, recipient_team text not null,
-  body text not null check(length(trim(body)) between 20 and 2000),
-  core_value text not null references thankyou.core_values(code) check(core_value in ('breakthrough','altruism','right_choice','optimization','growth','ownership')),
-  month date not null, created_at timestamptz not null default now(),
-  status text not null default 'submitted' check(status in ('pending','approved','rejected','submitted')),
-  reviewer text, reviewed_at timestamptz, reason text,
-  request_id text not null, quota_waived boolean not null default false,
-  check(sender <> recipient),
-  unique(workspace,request_id)
-);
-create unique index praises_monthly_quota on thankyou.praises(workspace,sender,month) where not quota_waived;
-create index praises_review on thankyou.praises(workspace,status,id);
-create index praises_quarter on thankyou.praises(workspace,month) where status='approved';
-create table thankyou.audit (
-  id uuid primary key default gen_random_uuid(), workspace text not null, actor text not null,
-  action text not null, target uuid, created_at timestamptz not null default now()
-);
-create table thankyou.installations (
-  workspace text primary key, token_cipher text not null, updated_at timestamptz not null default now()
-);
-create table thankyou.oauth_states (
-  hash text primary key, expires_at timestamptz not null
-);
-create table thankyou.jobs (
-  id text primary key, workspace text not null, user_id text not null,
-  available_at timestamptz not null default now(), attempts integer not null default 0,
-  lease_until timestamptz, done boolean not null default false
-);
-create index jobs_available on thankyou.jobs(available_at) where not done;
-create table thankyou.export_tickets (
-  hash text primary key, workspace text not null, actor text not null,
-  status_filter text not null, expires_at timestamptz not null
-);
-alter table thankyou.export_tickets enable row level security;
-revoke all on thankyou.export_tickets from public,anon,authenticated;
-grant select,insert,delete on thankyou.export_tickets to service_role;
-
-do $$ declare t text; begin
-  foreach t in array array['employees','admins','praises','audit','installations','oauth_states','jobs'] loop
-    execute format('alter table thankyou.%I enable row level security',t);
-    execute format('revoke all on thankyou.%I from public, anon, authenticated',t);
-    execute format('grant select,insert,update,delete on thankyou.%I to service_role',t);
-  end loop;
-end $$;
-
--- This API is callable only by the trusted server. Slack signature supplies actor identity.
--- No SECURITY DEFINER; service_role is deliberately kept in the server secret store.
-create or replace function thankyou.same_org(s2 text,s3 text,r2 text,r3 text)
-returns boolean language sql immutable security invoker set search_path='' as $
- select case when nullif(nullif(trim(s3),''),'-') is not null
- then nullif(nullif(trim(s3),''),'-') = nullif(nullif(trim(r3),''),'-')
- when nullif(nullif(trim(s2),''),'-') is not null
- then nullif(nullif(trim(s2),''),'-') = nullif(nullif(trim(r2),''),'-')
- else null end;
-$;
-revoke all on function thankyou.same_org(text,text,text,text) from public,anon,authenticated;
-grant execute on function thankyou.same_org(text,text,text,text) to service_role;
-
-create function public.ty_api(p_op text, p_data jsonb default '{}'::jsonb)
-returns jsonb language plpgsql security invoker set search_path='' as $$
+alter table thankyou.praises add column if not exists quota_waived boolean not null default false;
+create unique index if not exists praises_monthly_quota on thankyou.praises(workspace,sender,month) where not quota_waived;
+create or replace function public.ty_api(p_op text, p_data jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
 declare
   w text := p_data->>'workspace'; u text := p_data->>'user';
   r thankyou.praises%rowtype; s thankyou.employees%rowtype; t thankyou.employees%rowtype;
@@ -167,27 +83,28 @@ begin
   select * into s from thankyou.employees where workspace=w and user_id=u and active;
 
   if p_op='home' then
-    select * into r from thankyou.praises where workspace=w and sender=u and month=m and not quota_waived;
-    return jsonb_build_object('eligible',s.user_id is not null,'submitted',r.id is not null,'status',r.status,'admin',admin_ok,
-      'test_quota_available',r.id is null and exists(select 1 from thankyou.praises where workspace=w and sender=u and month=m and quota_waived),
+    return jsonb_build_object('eligible',s.user_id is not null,'submitted',false,'status',null,'admin',admin_ok,
+      'participation_rules','quarter_recipient_only',
       'quarter_sent',(select count(*) from thankyou.praises where workspace=w and sender=u and month>=q and month<q+interval '3 months'),
       'quarter_received',(select count(*) from thankyou.praises where workspace=w and recipient=u and month>=q and month<q+interval '3 months'));
   elsif p_op='submit' then
-    if s.user_id is null then return jsonb_build_object('error','직원·팀 정보 등록이 필요합니다.'); end if;
+    if s.user_id is null then return jsonb_build_object('error','직원 계정 등록이 필요합니다.'); end if;
     -- Directory rows are share-locked against concurrent roster updates while validating.
     perform 1 from thankyou.employees where workspace=w and user_id in (u,p_data->>'recipient') order by user_id for share;
     select * into s from thankyou.employees where workspace=w and user_id=u and active;
     select * into t from thankyou.employees where workspace=w and user_id=p_data->>'recipient' and active;
     if s.user_id is null or t.user_id is null then return jsonb_build_object('error','재직 중인 직원만 참여할 수 있습니다.'); end if;
     if s.user_id=t.user_id then return jsonb_build_object('error','본인은 추천할 수 없습니다.'); end if;
-    if not s.org_exempt and nullif(nullif(trim(s.part3),''),'-') is null and nullif(nullif(trim(s.part2),''),'-') is null then
-      return jsonb_build_object('error','내 part2·part3 조직 정보가 없어 추천 기준을 확인할 수 없습니다. 피플팀에 문의해주세요.'); end if;
-    if not s.org_exempt and thankyou.same_org(s.part2,s.part3,t.part2,t.part3) is true then
-      return jsonb_build_object('error','발신자의 part3가 있으면 같은 part3, 없으면 같은 part2 동료는 추천할 수 없습니다.'); end if;
+    -- Same-team and missing-organization restrictions removed; active identity/self/quarter guards remain.
     select * into r from thankyou.praises where workspace=w and request_id=p_data->>'request_id';
     if found then
       if r.sender<>u then return jsonb_build_object('error','요청 정보가 일치하지 않습니다.'); end if;
       return jsonb_build_object('id',r.id);
+    end if;
+    -- Monthly limit: one praise per sender per Korea-time month. Rows flagged quota_waived (individual test exemptions) do not count.
+    perform pg_advisory_xact_lock(hashtextextended(w||':'||u||':'||m::text,0));
+    if exists(select 1 from thankyou.praises where workspace=w and sender=u and month=m and not quota_waived) then
+      return jsonb_build_object('error','이번 달에는 이미 칭찬을 남겼어요. 다음 달에 다시 참여할 수 있어요.');
     end if;
     begin
       insert into thankyou.praises(workspace,sender,recipient,sender_team,recipient_team,body,core_value,month,request_id)
@@ -195,7 +112,10 @@ begin
     exception when unique_violation then
       select * into r from thankyou.praises where workspace=w and request_id=p_data->>'request_id' and sender=u;
       if found then return jsonb_build_object('id',r.id); end if;
-      return jsonb_build_object('error','이번 달에는 이미 제출했습니다. 반려되어도 월 한도는 유지됩니다.');
+      if exists(select 1 from thankyou.praises where workspace=w and sender=u and month=m and not quota_waived) then
+        return jsonb_build_object('error','이번 달에는 이미 칭찬을 남겼어요. 다음 달에 다시 참여할 수 있어요.');
+      end if;
+      return jsonb_build_object('error','접수 요청이 중복되었습니다. 접수함을 확인한 뒤 다시 시도해주세요.');
     when check_violation then
       if SQLERRM like '같은 동료에게는 분기당%' then return jsonb_build_object('error',SQLERRM); end if;
       return jsonb_build_object('error','입력 내용을 확인해주세요. 본문 20~2,000자, 핵심가치 선택이 필요합니다.');
@@ -232,8 +152,7 @@ begin
     insert into thankyou.audit(workspace,actor,action) values(w,u,'review_read');
     return stats||jsonb_build_object('filter',status_filter,'rows',case when jsonb_array_length(rows_json)>5 then rows_json-5 else rows_json end,
       'next',case when jsonb_array_length(rows_json)>5 then jsonb_build_object('id',rows_json->4->>'id','created_at',rows_json->4->>'created_at') else null end);
-  elsif p_op='review' then
-    return jsonb_build_object('error','승인·반려 절차는 사용하지 않습니다.');
+  elsif p_op='review' then return jsonb_build_object('error','승인·반려 절차는 사용하지 않습니다.');
     select * into r from thankyou.praises where workspace=w and id=(p_data->>'id')::uuid for update;
     if not found then return jsonb_build_object('error','접수 건을 찾을 수 없습니다.'); end if;
     if u in (r.sender,r.recipient) then return jsonb_build_object('error','본인 발신·수신 건은 검토할 수 없습니다.'); end if;
@@ -260,26 +179,5 @@ begin
     return jsonb_build_object('quarter_start',q,'rows',result);
   end if;
   return jsonb_build_object('error','지원하지 않는 작업입니다.');
-end $$;
-revoke all on function public.ty_api(text,jsonb) from public,anon,authenticated;
-grant execute on function public.ty_api(text,jsonb) to service_role;
-
+end $function$;
 commit;
-
-create or replace function thankyou.enforce_quarter_recipient()
-returns trigger language plpgsql security invoker set search_path=pg_catalog,thankyou as $$
-declare quarter_start date;
-begin
- if TG_OP='UPDATE' and (new.workspace,new.sender,new.recipient,new.month) is not distinct from (old.workspace,old.sender,old.recipient,old.month) then return new; end if;
- quarter_start:=make_date(extract(year from new.month)::int,((extract(month from new.month)::int-1)/3)*3+1,1);
- perform pg_advisory_xact_lock(hashtextextended(new.workspace||':'||new.sender||':'||quarter_start::text,0));
- if exists(select 1 from thankyou.praises p where p.workspace=new.workspace and p.sender=new.sender and p.recipient=new.recipient and p.month>=quarter_start and p.month<quarter_start+interval '3 months' and p.id<>new.id and p.request_id<>new.request_id) then
-  raise exception using errcode='23514', message='같은 동료에게는 분기당 한 번만 칭찬할 수 있어요. 이번에는 다른 동료의 좋은 행동을 찾아주세요.';
- end if;
- return new;
-end $$;
-revoke all on function thankyou.enforce_quarter_recipient() from public,anon,authenticated;
-grant execute on function thankyou.enforce_quarter_recipient() to service_role;
-drop trigger if exists praises_quarter_recipient on thankyou.praises;
-create trigger praises_quarter_recipient before insert or update of workspace,sender,recipient,month on thankyou.praises for each row execute function thankyou.enforce_quarter_recipient();
-

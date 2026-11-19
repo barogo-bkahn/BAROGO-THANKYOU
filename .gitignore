@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+coverage/
+*.csv
+!docs/employees.example.csv
+*.log
+exchange/.data/
+
+supabase/.temp/
+*.bak*
