@@ -55,7 +55,9 @@ export function createApp(env, api = clients(env)) {
     if(['export_link','exchange_open'].includes(action?.action_id))return {};
     if(['praise_open','praise_unavailable'].includes(action?.action_id)){
       const home=await api.db('home',{workspace,user});
-      view=home.eligible?praiseModal():messageModal('활성 직원 계정 확인 후 참여할 수 있어요. 피플팀에 문의해주세요.');
+      if(!home.eligible)view=messageModal('활성 직원 계정 확인 후 참여할 수 있어요. 피플팀에 문의해주세요.');
+      else if(home.submitted)view=messageModal('이번 달에는 이미 칭찬을 남겼어요. 다음 달에 다시 참여할 수 있어요.');
+      else view=praiseModal();
     }
     else if(['review_open','review_next','review_filter','review_first'].includes(action?.action_id)) {
       const options=action.action_id==='review_next'?JSON.parse(action.value):{filter:action.selected_option?.value??(action.action_id==='review_first'?action.value:'all')};

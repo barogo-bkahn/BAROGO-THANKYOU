@@ -34,15 +34,15 @@ const VALUES = [
   ['growth','프로학습러! · 성장','꾸준히 배우고 새로운 방법을 업무에 적용했어요'],
   ['ownership','책임감 만렙! · 오너십','맡은 일의 결과를 끝까지 확인하고 책임졌어요']
 ];
-const PARTICIPATION_RULE = "같은 동료에게는 분기당 한 번만 칭찬할 수 있어요.\n점수를 위해 미리 약속하고 칭찬을 주고받는 일을 줄이고, 더 다양한 동료의 좋은 행동을 발견하기 위한 규칙이에요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.";
-const participationNotes = '🧡 참여 전에 살짝 확인해주세요\n- 같은 팀도, 다른 팀도 칭찬할 수 있어요. 월별 횟수 제한은 없어요.\n- 같은 동료에게는 분기당 한 번만 보낼 수 있어요. 본인 칭찬은 할 수 없어요.\n- 실제로 고마웠던 일이 있다면 서로 칭찬해도 괜찮아요. 점수를 위해 약속한 맞칭찬은 지양해주세요.\n- 이야기는 피플팀만 확인해요. 공개 게시와 수신자 자동 알림은 없어요.\n- 불필요한 개인정보나 건강·가족 정보 등 민감한 내용은 적지 말아주세요.';
+const PARTICIPATION_RULE = "칭찬은 월 1회, 같은 동료에게는 분기당 한 번만 남길 수 있어요.\n점수를 위해 미리 약속하고 칭찬을 주고받는 일을 줄이고, 더 다양한 동료의 좋은 행동을 발견하기 위한 규칙이에요. 실제로 고마웠던 일이 있다면 서로 칭찬하는 것은 괜찮아요.";
+const participationNotes = '🧡 참여 전에 살짝 확인해주세요\n- 같은 팀도, 다른 팀도 칭찬할 수 있어요. 칭찬은 월 1회 남길 수 있어요.\n- 같은 동료에게는 분기당 한 번만 보낼 수 있어요. 본인 칭찬은 할 수 없어요.\n- 실제로 고마웠던 일이 있다면 서로 칭찬해도 괜찮아요. 점수를 위해 약속한 맞칭찬은 지양해주세요.\n- 이야기는 피플팀만 확인해요. 공개 게시와 수신자 자동 알림은 없어요.\n- 불필요한 개인정보나 건강·가족 정보 등 민감한 내용은 적지 말아주세요.';
 const plain = text => ({type:'plain_text',text});
 const section = text => ({type:'section',text:plain(text)});
 const button = (text, action_id, value) => ({type:'button',text:plain(text),action_id,...(value ? {value}: {})});
 function homeView(data, exchangeTest={}) {
   const md=text=>({type:'section',text:{type:'mrkdwn',text}});
   const context=text=>({type:'context',elements:[{type:'mrkdwn',text}]});
-  const actions=[button(data.eligible?'💌 칭찬 맡기기':'💌 칭찬 안내','praise_open')];
+  const actions=[button(data.submitted?'💌 이번 달 칭찬 완료':data.eligible?'💌 칭찬 맡기기':'💌 칭찬 안내',data.submitted?'praise_unavailable':'praise_open')];
   const test=exchangeTest.user && exchangeTest.user===exchangeTest.testUser && exchangeTest.testUrl==='http://127.0.0.1:7341';
   let exchangeUrl;
   if(typeof data.exchange_url==='string')try{const u=new URL(data.exchange_url);if(u.protocol==='https:'&&!u.username&&!u.password&&!['localhost','127.0.0.1','::1','[::1]'].includes(u.hostname))exchangeUrl=u.href;}catch{}
@@ -62,6 +62,7 @@ function homeView(data, exchangeTest={}) {
     context('전체 접수 기준 · 분기는 1~3월 / 4~6월 / 7~9월 / 10~12월이에요.'),
     {type:'actions',block_id:'home_main_actions',elements:actions}
   ];
+  if(data.submitted)blocks.push(context('이번 달에는 이미 칭찬을 남겼어요. 다음 달에 다시 참여할 수 있어요.'));
   if(!data.eligible)blocks.push(context('직원 계정 확인이 필요해요. 피플팀에 문의해주세요.'));
   if(lanUrl)blocks.push(context('🧪 개발 단계 테스트예요. 사내망·VPN에서만 열리고, 개발자 PC가 켜져 있을 때만 접속돼요. 가상 데이터라 실제 포인트·상품은 지급되지 않아요.'));
   else if(test&&!exchangeUrl)blocks.push(context('🧪 교환소 버튼은 나에게만 보이는 PC 테스트용이에요. 서버가 실행 중인 이 PC에서 열리며, 실제 포인트·상품은 지급되지 않아요.'));
@@ -186,7 +187,9 @@ function edgeHandler(env,waitUntil,api=clients(env),exchange=fetch){
     }
     if(['praise_open','praise_unavailable'].includes(action?.action_id)){
       const home=await api.db('home',actor);
-      view=home.eligible?praiseModal():messageModal('활성 직원 계정 확인 후 참여할 수 있어요. 피플팀에 문의해주세요.');
+      if(!home.eligible)view=messageModal('활성 직원 계정 확인 후 참여할 수 있어요. 피플팀에 문의해주세요.');
+      else if(home.submitted)view=messageModal('이번 달에는 이미 칭찬을 남겼어요. 다음 달에 다시 참여할 수 있어요.');
+      else view=praiseModal();
     }
     else if(['review_open','review_next','review_filter','review_first'].includes(action?.action_id)){
       const options=action.action_id==='review_next'?JSON.parse(action.value):{filter:action.selected_option?.value??(action.action_id==='review_first'?action.value:'all')};

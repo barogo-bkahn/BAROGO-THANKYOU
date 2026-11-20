@@ -7,7 +7,7 @@ web, responsive; Slack App Home links to the exchange.
 Barogo employees exchange personally earned praise points for personal rewards. The five designated People administrators see all employee settlements, balances and orders.
 
 ## Confirmed workflow
-Quarterly quantitative and qualitative scores are weighted 50:50. Points are credited only after a People administrator approves the settlement. Employees see balance, products and order history on one page; administrators approve and inspect all records on one page. Same colleague once per quarter; no team or monthly restriction. No team gifts. No automatic public posts or recipient DMs.
+Quarterly quantitative and qualitative scores are weighted 50:50. Points are credited only after a People administrator approves the settlement. Employees see balance, products and order history on one page; administrators approve and inspect all records on one page. Same colleague once per quarter; no team restriction; one submission per calendar month. No team gifts. No automatic public posts or recipient DMs.
 
 ## Stack and constraints
 Existing Node ES modules and Supabase service-only RPC. New website uses dependency-free Node, semantic HTML/CSS/JS. Local demo is explicitly isolated with fictional data. Production uses Slack OIDC, server sessions and Supabase private tables. Point conversion and product prices remain unconfirmed and must not become production defaults.

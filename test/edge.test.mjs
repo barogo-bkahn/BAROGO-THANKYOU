@@ -48,7 +48,7 @@ test('worker endpoint requires its own secret',async()=>{
  assert.equal((await handler(new Request(env.PUBLIC_URL+'/internal/tick',{method:'POST'}))).status,401);
 });
 
-test('existing monthly submissions do not block a new colleague praise modal',async()=>{
+test('monthly submission blocks the modal while an unused month remains available',async()=>{
  const cipher=await seal('test-bot',env.TOKEN_ENCRYPTION_KEY);
  for(const submitted of [true,false]){
   let opened;const tasks=[];
@@ -58,6 +58,9 @@ test('existing monthly submissions do not block a new colleague praise modal',as
   });
   const response=await handler(req('/slack/interactions',{type:'block_actions',team:{id:env.SLACK_TEAM_ID},user:{id:'UTEST'},trigger_id:'trigger',actions:[{action_id:'praise_unavailable'}]}));
   assert.equal(response.status,200);await Promise.all(tasks);
-  assert.equal(opened.callback_id,'praise_submit');
+  if(submitted){
+   assert.notEqual(opened.callback_id,'praise_submit');
+   assert(JSON.stringify(opened).includes('이번 달에는 이미 칭찬'));
+  }else assert.equal(opened.callback_id,'praise_submit');
  }
 });
